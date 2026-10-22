@@ -14,6 +14,7 @@ use windows::Win32::Security::{
     GetLengthSid, GetTokenInformation, TokenIntegrityLevel, TokenUser, TOKEN_INFORMATION_CLASS,
     TOKEN_MANDATORY_LABEL, TOKEN_QUERY, TOKEN_USER,
 };
+use windows::Win32::System::Console::GetConsoleWindow;
 use windows::Win32::System::Console::{SetConsoleCtrlHandler, CTRL_BREAK_EVENT, CTRL_C_EVENT};
 use windows::Win32::System::Threading::{
     CreateEventW, CreateMutexW, CreateProcessW, GetCurrentProcess, GetProcessTimes, OpenEventW,
@@ -40,8 +41,8 @@ impl Names {
             session_id(session)?
         );
         Ok(Self {
-            mutex: wide(&format!("{key}-worker")),
-            stop: wide(&format!("{key}-stop")),
+            mutex: wide(format!("{key}-worker")),
+            stop: wide(format!("{key}-stop")),
         })
     }
 }
@@ -67,7 +68,7 @@ fn token_information(token: HANDLE, kind: TOKEN_INFORMATION_CLASS) -> AppResult<
     Ok(buffer)
 }
 
-fn identity() -> AppResult<String> {
+pub fn identity() -> AppResult<String> {
     let mut raw = HANDLE::default();
     unsafe {
         OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut raw)?;
@@ -98,6 +99,36 @@ pub fn current_session() -> AppResult<String> {
     )?)
 }
 
+pub fn desktop_scope() -> AppResult<String> {
+    Ok(format!("Local\\TerminalIME-desktop-{}", identity()?))
+}
+
+pub fn desktop_running() -> bool {
+    let Ok(name) = desktop_scope().map(wide) else {
+        return false;
+    };
+    unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(name.as_ptr())) }
+        .map(|h| {
+            drop(OwnedHandle(h));
+            true
+        })
+        .unwrap_or(false)
+}
+
+pub(crate) fn console_lease() -> AppResult<Option<OwnedHandle>> {
+    let name = wide(format!(
+        "Local\\TerminalIME-console-{}-{}",
+        identity()?,
+        unsafe { GetConsoleWindow() }.0 as usize
+    ));
+    let handle = OwnedHandle(unsafe { CreateMutexW(None, false, PCWSTR(name.as_ptr()))? });
+    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        Ok(None)
+    } else {
+        Ok(Some(handle))
+    }
+}
+
 fn open_mutex(names: &Names) -> AppResult<Option<OwnedHandle>> {
     match unsafe {
         OpenMutexW(
@@ -116,7 +147,7 @@ fn open_mutex(names: &Names) -> AppResult<Option<OwnedHandle>> {
     }
 }
 
-fn shell_process(pid: u32) -> AppResult<OwnedHandle> {
+pub(crate) fn shell_process(pid: u32) -> AppResult<OwnedHandle> {
     Ok(OwnedHandle(unsafe {
         OpenProcess(
             PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
@@ -126,7 +157,7 @@ fn shell_process(pid: u32) -> AppResult<OwnedHandle> {
     }))
 }
 
-fn created_at(process: HANDLE) -> AppResult<u64> {
+pub fn created_at(process: HANDLE) -> AppResult<u64> {
     let mut created = FILETIME::default();
     let mut exited = FILETIME::default();
     let mut kernel = FILETIME::default();
@@ -138,6 +169,9 @@ fn created_at(process: HANDLE) -> AppResult<u64> {
 }
 
 pub fn start(options: Start) -> AppResult<()> {
+    if desktop_running() {
+        return Ok(());
+    }
     let session = current_session()?;
     let names = Names::new(&session)?;
     if open_mutex(&names)?.is_some() {
@@ -168,12 +202,19 @@ pub fn start(options: Start) -> AppResult<()> {
         arguments.push("--log".into());
         arguments.push(path.into_os_string());
     }
-    let executable: Vec<u16> = executable
-        .as_os_str()
+    spawn_hidden(&arguments)?;
+    Ok(())
+}
+
+/// Return a waitable process handle. No console, standard streams, or other handles are inherited.
+pub fn spawn_hidden(arguments: &[OsString]) -> AppResult<OwnedHandle> {
+    let executable: Vec<u16> = arguments
+        .first()
+        .ok_or("missing executable")?
         .encode_wide()
         .chain(Some(0))
         .collect();
-    let mut command = command_line(&arguments);
+    let mut command = command_line(arguments);
     let startup = STARTUPINFOW {
         cb: size_of::<STARTUPINFOW>() as u32,
         ..Default::default()
@@ -195,9 +236,9 @@ pub fn start(options: Start) -> AppResult<()> {
             &mut process,
         )?;
     }
-    let _process = OwnedHandle(process.hProcess);
+    let process_handle = OwnedHandle(process.hProcess);
     let _thread = OwnedHandle(process.hThread);
-    Ok(())
+    Ok(process_handle)
 }
 
 fn command_line(arguments: &[OsString]) -> Vec<u16> {
@@ -330,6 +371,9 @@ fn run_worker(options: Start, session: String, created: u64) -> AppResult<()> {
     if !platform::is_terminal(platform::terminal_host()) {
         return Err("attached console has no recognized Windows Terminal host".into());
     }
+    let Some(_console_lease) = console_lease()? else {
+        return Ok(());
+    };
     let stop =
         OwnedHandle(unsafe { CreateEventW(None, true, false, PCWSTR(names.stop.as_ptr()))? });
     let handles = [stop.0, shell.0];
@@ -350,6 +394,9 @@ fn run_worker(options: Start, session: String, created: u64) -> AppResult<()> {
 
     let result = (|| -> AppResult<()> {
         loop {
+            if desktop_running() {
+                break;
+            }
             let host = platform::terminal_host();
             let sample = platform::sample(Some(host));
             let foreground = sample.focus.is_some_and(|f| f.foreground == host);

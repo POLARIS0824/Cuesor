@@ -2,12 +2,16 @@ use std::path::PathBuf;
 
 use crate::model::{Color, Colors, ImeMode};
 
-pub const HELP: &str = "Terminal IME — Windows Terminal + Nushell
+pub const HELP: &str = "Terminal IME — Windows Terminal native engine
+
+For the tray and settings app, open TerminalIME.exe beside this executable.
 
   start --shell-pid PID [--cn-color #RRGGBB] [--en-color #RRGGBB] [--log FILE]
   stop
   status
   reset
+  discover REPORT.json
+  diagnose REPORT.json
   probe [--watch SECONDS] [--report FILE] [--color cn|en|reset] [--follow]
 
 start returns after creating the worker; status reports whether it initialized.

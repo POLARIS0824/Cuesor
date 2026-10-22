@@ -1,8 +1,10 @@
 use std::mem::size_of;
+use std::os::windows::ffi::OsStrExt;
 use windows::core::{w, PWSTR};
 use windows::Win32::Foundation::{
     CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE, HWND, LPARAM, WPARAM,
 };
+use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
 use windows::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
@@ -11,7 +13,8 @@ use windows::Win32::System::Console::{
     ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING,
 };
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    OpenProcess, OpenProcessToken, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
+    PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::Ime::ImmGetDefaultIMEWnd;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayout;
@@ -34,8 +37,8 @@ impl Drop for OwnedHandle {
     }
 }
 
-pub fn wide(value: &str) -> Vec<u16> {
-    value.encode_utf16().chain(Some(0)).collect()
+pub fn wide(value: impl AsRef<std::ffi::OsStr>) -> Vec<u16> {
+    value.as_ref().encode_wide().chain(Some(0)).collect()
 }
 
 pub fn class_name(hwnd: HWND) -> String {
@@ -64,6 +67,26 @@ pub fn process_name(hwnd: HWND) -> Option<String> {
     .ok()?;
     let path = String::from_utf16_lossy(&buffer[..len as usize]);
     Some(path.rsplit(['\\', '/']).next()?.to_owned())
+}
+
+pub fn process_elevated(pid: u32) -> AppResult<bool> {
+    let process =
+        OwnedHandle(unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)? });
+    let mut raw = HANDLE::default();
+    unsafe { OpenProcessToken(process.0, TOKEN_QUERY, &mut raw)? };
+    let token = OwnedHandle(raw);
+    let mut value = TOKEN_ELEVATION::default();
+    let mut length = 0;
+    unsafe {
+        GetTokenInformation(
+            token.0,
+            TokenElevation,
+            Some((&mut value as *mut TOKEN_ELEVATION).cast()),
+            size_of::<TOKEN_ELEVATION>() as u32,
+            &mut length,
+        )?;
+    }
+    Ok(value.TokenIsElevated != 0)
 }
 
 pub fn terminal_host() -> HWND {

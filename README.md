@@ -1,10 +1,65 @@
 # Terminal IME
 
-面向 Windows Terminal 和 Nushell 的 Rust 光标颜色指示器。微软拼音中文状态使用橙色 `#FF7800`，英文状态和美式英文键盘使用蓝色 `#0077FF`；无法确认状态或窗口失去前台焦点时恢复终端主题颜色。
+面向 Windows Terminal 的 Rust 光标颜色指示器，提供 GPUI 设置窗口、系统托盘和不依赖 shell 配置的自动接入。微软拼音中文状态默认使用橙色 `#FF7800`，英文状态和美式英文键盘默认使用蓝色 `#0077FF`；无法确认状态或窗口失去前台焦点时恢复终端主题颜色。
 
-首版已实现后台运行和 Nu 接入，并通过本机颜色、多标签／分屏、日常 Atuin 使用验证。同一 Windows Terminal 窗口内，已接入的会话跟随当前正在输入的中／英状态；不保存各分屏独立的语言偏好。
+同一 Windows Terminal 窗口内，已接入的会话跟随当前正在输入的中／英状态；不保存各分屏独立的语言偏好。当前桌面版为 0.2.0，原有 CLI 诊断方式仍保留。
 
-## 构建与接入
+## 桌面版使用
+
+构建后双击 `target/release/TerminalIME.exe`，或者使用 `artifacts/TerminalIME-portable/TerminalIME.exe`。同目录的 `terminal-ime.exe` 是后台组件，需要一起保留；日常使用打开大写名称的 GUI 入口。
+
+- 在设置窗口点击色板或“自定义颜色”，选择中文／英文光标颜色，设置会自动保存并应用到终端。
+- “启用光标颜色指示”控制暂停／恢复；“恢复默认颜色”恢复橙／蓝配色。
+- 关闭设置窗口会继续在托盘运行。托盘图标可能位于任务栏的“显示隐藏图标”区域；双击图标打开设置，右键可暂停／恢复或退出。
+- 打开 Windows Terminal 后，后台会自动发现已有和新建的终端会话，数秒内接入。不需要再执行 Nu 命令或编辑 Nu、PowerShell 配置。
+- 若终端以管理员身份运行，普通权限的软件无法接入，设置会提示“检测到管理员终端，需要切换管理员模式”。点击“以管理员身份重新启动”，在 Windows 的 UAC 提示中选择“是”；也可使用下方“切换管理员模式”。程序默认使用普通权限。
+- 登录启动默认关闭，可通过设置开启；登录时只驻留托盘，不弹出设置窗口。移动程序目录后应重新关闭／开启此选项以更新路径。
+
+颜色、启用状态和登录启动偏好保存在 `%LOCALAPPDATA%/TerminalIME/settings.json`。登录启动只操作当前用户 Run 项中的 `TerminalIME` 值。`runtime.json` 和有错误时的 `last-worker-error.json` 用于诊断，不记录终端输入正文。
+
+遇到一直等待会话时，可用同目录的 `terminal-ime.exe diagnose REPORT.json` 导出发现结果；`elevated_terminal_pids` 列出当前权限无法接入的管理员终端。开发检查 `tools/check-terminal-access.ps1` 比较实际进程令牌与界面运行记录，避免将权限问题显示成没有终端。
+
+若设置目录将文件移动报告为跨卷，保存会回退到 Windows 允许复制的移动模式。`tools/check-settings-storage.ps1` 使用独立测试文件验证真实设置目录的新建与覆盖，不改动现有配色。
+
+桌面运行由 GUI、一个自动发现进程以及每个 console 的轻量 worker 组成。设置变化由 worker 重新加载，不需要重启 shell。应用退出时 worker 会尽力恢复主题色并退出；关闭某个根 shell 时其 worker 也会退出。旧 Nu 接入脚本调用的 CLI worker 会在桌面版运行时让出控制权，避免争抢颜色。
+
+## 桌面版构建与验证
+
+已在本机 Windows GNU 工具链上构建。首次构建需要联网获取依赖，GPUI 的首次 release 构建明显慢于原来只有 CLI 的项目。
+
+```powershell
+./tools/build-desktop.ps1
+./tools/package-desktop.ps1
+./tools/desktop-check.ps1
+```
+
+打包脚本生成可直接运行的 `artifacts/TerminalIME-portable/` 目录。桌面检查使用独立测试设置，验证实际窗口启动、Common Controls 清单、托盘、单实例、关闭隐藏、暂停保存及退出清理；执行前先从托盘退出日常实例。
+
+构建脚本优先使用 `GPUI_FXC_PATH` 或 PATH 中的 Windows SDK `fxc.exe`。没有 SDK 时，会构建项目内的 `tools/shader-compiler.rs`，使用 Windows 自带的 `D3DCompileFromFile` 编译 GPUI 发布构建的着色器；它只实现 GPUI 使用的参数子集。GNU 构建还需要完整 GCC 中的 `windres` 和 Windows 导入库。MSVC 构建仍应安装官方 Windows SDK／C++ 构建工具。本机未改动 GPUI 上游源码或全局 Rust 配置。
+
+GNU 构建脚本还使用项目内的 `dlltool-wrapper.rs` 隔离每次导入库调用的临时文件，避免共享前缀导致 stub 丢失；辅助工具只在构建期间运行。
+
+代码检查：
+
+```powershell
+cargo fmt --all --check
+cargo test -p terminal-ime --locked
+cargo clippy --workspace --locked --all-targets -j 1 -- -D warnings
+```
+
+## 桌面版资源与边界
+
+本机 release 版隐藏设置窗口、接入 3 个测试会话的 10 秒低活动采样中，GUI 私有内存约 **96.27 MiB**，自动发现进程约 **3.39 MiB**，全部进程合计约 **109.40 MiB**，整机 CPU 约 **0.107%**。未统计 GPU 显存，采样没有固定前台活动，不代表最高开销。
+
+GUI 常驻有额外内存开销。桌面版自动接入不在 Nu 启动配置里执行同步命令；下方约 22 ms 的启动增量是旧版 Nu 脚本接入的历史测量，不能直接用于桌面版。当前尚未重新测量桌面版开启／关闭时 Nu 冷启动和颜色响应 P95。
+
+本机自动接入已验证 Nu 和 Windows PowerShell，以及在后台启动后新开的 Nu。原版颜色引擎和日常 Atuin 操作已有人工确认；桌面版的完整人工验收、实际 Windows 注销／登录、管理员模式、标签拖出和其他第三方输入法的证据另见 [桌面版验证记录](docs/DESKTOP_VALIDATION.md)。
+
+## 原有 CLI 接入与诊断
+
+以下方式用于独立 CLI 调试。桌面版正常使用时无需执行这些 Nu 接入命令；CLI 的 `status`／`stop` 管理旧会话 worker，桌面版使用托盘退出来停止。
+
+### CLI 构建与接入
 
 需要 Windows、Rust 工具链、Windows Terminal 和 Nushell。在本项目目录构建：
 
@@ -45,13 +100,13 @@ source /absolute/path/to/Terminal_IME/integrations/nushell.nu
 
 颜色只接受六位十六进制格式。重复 `start` 不会覆盖已运行实例的选项；默认自动接入颜色定义在 Rust 的 `Colors::default()` 中。
 
-## 性能与兼容性
+## 原版 CLI 性能与兼容性
 
 在本机实际 Nu 环境及配置下，交替测量关闭／启用各 30 次，Nu 启动时间中位数从 **273.00 ms** 增至 **294.68 ms**，增加约 **21.68 ms**；P95 从 **364.74 ms** 增至 **421.76 ms**，增加约 **57.03 ms**。最初的中位数增量 ≤10 ms、P95 增量 ≤30 ms 目标尚未达到。
 
 当前保留同步接入短命启动器的方式，长期工作由原生 worker 承担，不添加 Nu 后台任务。低活动采样中，每个 worker 私有内存约 **3.4 MiB**，10 个合计约 **33.5 MiB**。前台按约 100 ms 间隔采样，非前台按约 500 ms 间隔采样；采样间隔不等于已经测得的切换响应延迟。
 
-已在 Nu 0.116.0、Atuin 18.24.1 上验证 Ctrl+R／上方向键搜索、取消／选择历史记录后继续编辑，以及中英文颜色跟随。接入脚本不修改 Nu 的 hooks 或 keybindings。完整方法、CPU 数据、证据位置及未验收项见 [验证记录](docs/VALIDATION.md)。
+原版已在 Nu 0.116.0、Atuin 18.24.1 上验证 Ctrl+R／上方向键搜索、取消／选择历史记录后继续编辑，以及中英文颜色跟随。接入脚本不修改 Nu 的 hooks 或 keybindings。完整方法、CPU 数据、证据位置及未验收项见 [原版验证记录](docs/VALIDATION.md)。
 
 ## 诊断
 
@@ -83,7 +138,7 @@ mkdir artifacts
 - 每个 WT 会话使用独立 worker，通过用户身份、完整性级别和 `WT_SESSION` 区分实例。worker 绑定启动它的 Nu PID 与创建时间，处理 Nu 退出和显式停止。
 - 启动器通过 `CreateProcessW` 创建无窗口 worker，禁止继承句柄，避免长期持有 Nu 输出管道导致启动阻塞。
 - worker 附着 Nu 的 console，通过 `CONOUT$` 写入 OSC 12／112，只在状态变化时更新颜色，不读取终端输入，不改变光标形状或共享 console 模式。
-- 产品运行不需要 Python、不注入按键、不添加服务或计划任务。worker 使用启动它的 Nu 权限，不请求提权。
+- 产品运行不需要 Python，不注入按键，不添加服务或计划任务。CLI worker 使用启动它的 shell 权限；桌面版只在用户点击管理员模式时请求 UAC 授权。
 
 本机已验证 Windows Terminal 1.24.12741.0、微软拼音和美式英文键盘。其他输入法、跨权限组合、拖出标签页、全部 TUI，以及 WSL／SSH 场景尚未全面验证。主动重设光标颜色的程序可能覆盖指示色；本版不持续争抢颜色控制权。
 

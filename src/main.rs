@@ -1,7 +1,4 @@
-mod cli;
-mod model;
-mod platform;
-mod session;
+use terminal_ime::{agent, cli, model, platform, session};
 
 use cli::{Command, Probe};
 use model::Colors;
@@ -19,6 +16,9 @@ fn main() {
 }
 
 fn execute() -> AppResult<()> {
+    if let Some(result) = agent::internal_command(std::env::args().skip(1).collect()) {
+        return result;
+    }
     match cli::parse(std::env::args().skip(1))? {
         Command::Start(options) => session::start(options),
         Command::Worker {
