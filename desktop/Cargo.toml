@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 terminal-ime = { path = ".." }
-gpui = { version = "=0.2.2", default-features = false }
+gpui-kit = "=0.8.0"
 raw-window-handle = "0.6"
 serde_json = "1"
 windows = { version = "=0.58.0", features = ["Win32_UI_Shell", "Win32_UI_Controls_Dialogs", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_Graphics_Gdi"] }

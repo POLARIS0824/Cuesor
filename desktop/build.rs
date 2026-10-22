@@ -18,8 +18,9 @@ fn main() {
     }
     println!("cargo:rerun-if-changed=assets/app.rc");
     println!("cargo:rerun-if-changed=assets/app.ico");
-    println!("cargo:rerun-if-changed=assets/app.manifest");
+    // gpui-pre-platform supplies the process manifest (Common Controls v6,
+    // asInvoker and PerMonitorV2). Embedding a second one breaks GNU .rsrc merging.
     embed_resource::compile("assets/app.rc", embed_resource::NONE)
         .manifest_required()
-        .expect("embed desktop icon and manifest");
+        .expect("embed desktop icon");
 }

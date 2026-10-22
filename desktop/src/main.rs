@@ -1,15 +1,23 @@
 #![windows_subsystem = "windows"]
 
 mod native;
+mod ui;
 
+extern crate gpui_kit as gpui;
 use gpui::{prelude::*, *};
+use gpui_kit::component::Theme;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use std::{cell::RefCell, path::PathBuf, rc::Rc, sync::mpsc::Receiver, time::Duration};
+use std::{
+    cell::RefCell,
+    path::PathBuf,
+    rc::Rc,
+    sync::mpsc::Receiver,
+    time::{Duration, Instant},
+};
 use terminal_ime::{
     agent::{self, RuntimeStatus},
-    model::Color,
     platform::{AppResult, OwnedHandle},
-    settings::{self, Settings},
+    settings::{self, Appearance, Settings, WindowSize},
 };
 use windows::Win32::{
     Foundation::HWND,
@@ -17,15 +25,13 @@ use windows::Win32::{
     UI::WindowsAndMessaging::{SetForegroundWindow, ShowWindow, SW_HIDE, SW_RESTORE},
 };
 
-const INK: u32 = 0x1c2638;
-const MUTED: u32 = 0x7b8495;
-const ACCENT: u32 = 0x5865d8;
-
 struct SettingsView {
     options: Settings,
     directory: PathBuf,
     runtime: RuntimeStatus,
     notice: String,
+    notice_is_error: bool,
+    controller_stopped: bool,
     agent: OwnedHandle,
     instance: Rc<native::Instance>,
     receiver: Receiver<native::TrayAction>,
@@ -33,6 +39,8 @@ struct SettingsView {
     elevated: bool,
     color_dialog_open: bool,
     elevating: bool,
+    window_size: WindowSize,
+    size_save_at: Option<Instant>,
 }
 
 impl SettingsView {
@@ -52,6 +60,34 @@ impl SettingsView {
             }
             false
         });
+        cx.observe_window_appearance(window, |view, window, cx| {
+            if view.options.appearance == Appearance::System {
+                Theme::sync_system_appearance(Some(window), cx);
+            }
+        })
+        .detach();
+        cx.observe_window_bounds(window, |view, window, _| {
+            if let WindowBounds::Windowed(bounds) = window.window_bounds() {
+                let size = WindowSize {
+                    width: f32::from(bounds.size.width).round() as u32,
+                    height: f32::from(bounds.size.height).round() as u32,
+                };
+                if size.width >= WindowSize::MIN.width
+                    && size.height >= WindowSize::MIN.height
+                    && size != view.window_size
+                {
+                    view.window_size = size;
+                    view.size_save_at = Some(Instant::now() + Duration::from_millis(350));
+                }
+            }
+        })
+        .detach();
+        cx.on_app_quit(|view, _| {
+            // Flush even if the app exits immediately after the final resize.
+            let _ = view.window_size.save(&view.directory);
+            async {}
+        })
+        .detach();
         cx.spawn(async move |view, cx| {
             let mut ticks = 0;
             loop {
@@ -59,6 +95,17 @@ impl SettingsView {
                     .timer(Duration::from_millis(200))
                     .await;
                 let result = view.update(cx, |view, cx| {
+                    if view
+                        .size_save_at
+                        .is_some_and(|deadline| Instant::now() >= deadline)
+                    {
+                        view.size_save_at = None;
+                        if let Err(error) = view.window_size.save(&view.directory) {
+                            view.notice = format!("窗口尺寸保存失败：{error}");
+                            view.notice_is_error = true;
+                            cx.notify();
+                        }
+                    }
                     if view.instance.show_requested() {
                         view.show(cx);
                     }
@@ -76,6 +123,7 @@ impl SettingsView {
                                 if let Some(color) = color {
                                     view.change_color(chinese, color, cx);
                                 }
+                                cx.notify();
                             }
                             native::TrayAction::ElevationFinished(result) => {
                                 view.elevating = false;
@@ -83,6 +131,7 @@ impl SettingsView {
                                     Ok(()) => cx.quit(),
                                     Err(error) => {
                                         view.notice = error;
+                                        view.notice_is_error = true;
                                         cx.notify();
                                     }
                                 }
@@ -108,6 +157,9 @@ impl SettingsView {
                         {
                             view.notice =
                                 "后台已停止，请退出后重新打开；可查看运行记录排查。".into();
+                            view.notice_is_error = true;
+                            view.controller_stopped = true;
+                            view.runtime = RuntimeStatus::default();
                             cx.notify();
                         }
                     }
@@ -118,11 +170,13 @@ impl SettingsView {
             }
         })
         .detach();
-        Self {
+        let view = Self {
             options,
             directory,
             runtime: RuntimeStatus::default(),
-            notice: "设置自动保存，并应用到已接入的终端。".into(),
+            notice: "设置自动保存".into(),
+            notice_is_error: false,
+            controller_stopped: false,
             agent,
             instance,
             receiver,
@@ -130,7 +184,14 @@ impl SettingsView {
             elevated: native::is_elevated(),
             color_dialog_open: false,
             elevating: false,
-        }
+            window_size: WindowSize {
+                width: f32::from(window.bounds().size.width).round() as u32,
+                height: f32::from(window.bounds().size.height).round() as u32,
+            },
+            size_save_at: None,
+        };
+        view.apply_appearance(window, cx);
+        view
     }
 
     fn show(&self, cx: &mut App) {
@@ -158,20 +219,20 @@ impl SettingsView {
         match result {
             Ok(()) => {
                 self.options = next;
-                self.notice = "已保存，终端会自动应用新设置。".into();
+                self.notice = "设置已保存".into();
+                self.notice_is_error = false;
             }
-            Err(error) => self.notice = format!("保存失败：{error}"),
+            Err(error) => {
+                self.notice = format!("保存失败：{error}");
+                self.notice_is_error = true;
+            }
         }
         cx.notify();
     }
 
     fn change_color(&mut self, chinese: bool, color: u32, cx: &mut Context<Self>) {
         let mut next = self.options.clone();
-        if chinese {
-            next.chinese_color = format!("#{color:06X}");
-        } else {
-            next.english_color = format!("#{color:06X}");
-        }
+        next.customize_color(chinese, color);
         self.persist(next, cx);
     }
 
@@ -179,438 +240,10 @@ impl SettingsView {
         if !self.elevating {
             self.elevating = true;
             self.notice = "请处理 Windows 的管理员授权提示。".into();
+            self.notice_is_error = false;
             native::request_elevation();
             cx.notify();
         }
-    }
-
-    fn color_card(&self, chinese: bool, cx: &mut Context<Self>) -> impl IntoElement {
-        let value = if chinese {
-            &self.options.chinese_color
-        } else {
-            &self.options.english_color
-        };
-        let color = Color::parse(value).unwrap().0;
-        let label = if chinese {
-            "中文输入"
-        } else {
-            "英文输入"
-        };
-        let key = if chinese { "cn" } else { "en" };
-        let palette = [0xff7800, 0xf05c72, 0xe4b443, 0x20a78b, 0x0077ff, 0x8163de];
-        div()
-            .flex_1()
-            .p_5()
-            .rounded_xl()
-            .bg(rgb(0xffffff))
-            .border_1()
-            .border_color(rgb(0xe5e8ef))
-            .flex()
-            .flex_col()
-            .gap_4()
-            .child(
-                div()
-                    .flex()
-                    .justify_between()
-                    .items_center()
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child(label))
-                    .child(div().text_sm().text_color(rgb(MUTED)).child(if chinese {
-                        "中"
-                    } else {
-                        "EN"
-                    })),
-            )
-            .child(
-                div()
-                    .h(px(90.))
-                    .rounded_lg()
-                    .bg(rgb(0x182130))
-                    .p_4()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .font_family("Consolas")
-                    .text_color(rgb(0xc7d1e2))
-                    .child(if chinese {
-                        "> 输入一些文字"
-                    } else {
-                        "> echo hello"
-                    })
-                    .child(div().w(px(10.)).h(px(22.)).bg(rgb(color))),
-            )
-            .child(
-                div()
-                    .flex()
-                    .justify_between()
-                    .items_center()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(div().size_4().rounded_sm().bg(rgb(color)))
-                            .child(value.clone()),
-                    )
-                    .child(
-                        div()
-                            .id((key, 1u32))
-                            .cursor_pointer()
-                            .text_sm()
-                            .text_color(rgb(ACCENT))
-                            .child("自定义颜色")
-                            .on_click(cx.listener(move |view, _, window, _| {
-                                if !view.color_dialog_open {
-                                    view.color_dialog_open = true;
-                                    native::choose_color(chinese, color, native_hwnd(window));
-                                }
-                            })),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .children(palette.into_iter().enumerate().map(move |(i, choice)| {
-                        div()
-                            .id((if chinese { "cn-swatch" } else { "en-swatch" }, i))
-                            .size_6()
-                            .rounded_full()
-                            .bg(rgb(choice))
-                            .cursor_pointer()
-                            .border_2()
-                            .border_color(rgb(if color == choice { INK } else { 0xffffff }))
-                            .on_click(cx.listener(move |view, _, _, cx| {
-                                view.change_color(chinese, choice, cx)
-                            }))
-                    })),
-            )
-    }
-
-    fn switch(
-        &self,
-        id: &'static str,
-        enabled: bool,
-        action: impl Fn(&mut Self, &ClickEvent, &mut Window, &mut Context<Self>) + 'static,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        div()
-            .id(id)
-            .w(px(42.))
-            .h(px(24.))
-            .rounded_full()
-            .px(px(3.))
-            .flex()
-            .items_center()
-            .when(enabled, |d| d.justify_end())
-            .bg(rgb(if enabled { ACCENT } else { 0xcbd0dc }))
-            .cursor_pointer()
-            .child(div().size(px(18.)).rounded_full().bg(rgb(0xffffff)))
-            .on_click(cx.listener(action))
-    }
-}
-
-impl Render for SettingsView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let count = self.runtime.sessions.len();
-        let cn = self.color_card(true, cx).into_any_element();
-        let en = self.color_card(false, cx).into_any_element();
-        div()
-            .size_full()
-            .bg(rgb(0xf5f6fa))
-            .text_color(rgb(INK))
-            .font_family("Microsoft YaHei UI")
-            .text_sm()
-            .flex()
-            .flex_col()
-            .child(
-                div()
-                    .px_8()
-                    .py_5()
-                    .bg(rgb(0xffffff))
-                    .border_b_1()
-                    .border_color(rgb(0xe5e8ef))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_3()
-                            .child(
-                                div()
-                                    .size_9()
-                                    .rounded_lg()
-                                    .bg(rgb(ACCENT))
-                                    .text_color(rgb(0xffffff))
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .text_lg()
-                                    .font_weight(FontWeight::BOLD)
-                                    .child("I"),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_1()
-                                    .child(
-                                        div()
-                                            .text_lg()
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .child("Terminal IME"),
-                                    )
-                                    .child(
-                                        div()
-                                            .text_xs()
-                                            .text_color(rgb(MUTED))
-                                            .child("输入状态，一眼可见"),
-                                    ),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .px_3()
-                            .py_1()
-                            .rounded_full()
-                            .bg(rgb(if self.options.enabled {
-                                0xe5f5ed
-                            } else {
-                                0xe9ebf1
-                            }))
-                            .text_color(rgb(if self.options.enabled {
-                                0x23845b
-                            } else {
-                                MUTED
-                            }))
-                            .child(if self.options.enabled {
-                                "● 指示已启用"
-                            } else {
-                                "○ 已暂停"
-                            }),
-                    ),
-            )
-            .child(
-                div()
-                    .id("settings-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .px_8()
-                    .py_6()
-                    .flex()
-                    .flex_col()
-                    .gap_5()
-                    .child(
-                        div()
-                            .flex_shrink_0()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .text_2xl()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child("让光标告诉你输入状态"),
-                            )
-                            .child(
-                                div()
-                                    .text_color(rgb(MUTED))
-                                    .child("自动跟随中英文切换，适用于 Windows Terminal。"),
-                            ),
-                    )
-                    .child(div().flex_shrink_0().flex().gap_4().child(cn).child(en))
-                    .child(
-                        div()
-                            .flex_shrink_0()
-                            .rounded_xl()
-                            .bg(rgb(0xffffff))
-                            .border_1()
-                            .border_color(rgb(0xe5e8ef))
-                            .px_5()
-                            .flex()
-                            .flex_col()
-                            .child(
-                                div()
-                                    .py_4()
-                                    .flex()
-                                    .items_center()
-                                    .justify_between()
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .flex_col()
-                                            .gap_1()
-                                            .child("启用光标颜色指示")
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .text_color(rgb(MUTED))
-                                                    .child("暂停时恢复终端默认光标颜色"),
-                                            ),
-                                    )
-                                    .child(self.switch(
-                                        "enable",
-                                        self.options.enabled,
-                                        |view, _, _, cx| {
-                                            let mut next = view.options.clone();
-                                            next.enabled = !next.enabled;
-                                            view.persist(next, cx);
-                                        },
-                                        cx,
-                                    )),
-                            )
-                            .child(
-                                div()
-                                    .py_4()
-                                    .border_t_1()
-                                    .border_color(rgb(0xeff0f5))
-                                    .flex()
-                                    .items_center()
-                                    .justify_between()
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .flex_col()
-                                            .gap_1()
-                                            .child("登录 Windows 时启动")
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .text_color(rgb(MUTED))
-                                                    .child("启动后驻留托盘，自动接入终端"),
-                                            ),
-                                    )
-                                    .child(self.switch(
-                                        "autostart",
-                                        self.options.auto_start,
-                                        |view, _, _, cx| {
-                                            let mut next = view.options.clone();
-                                            next.auto_start = !next.auto_start;
-                                            view.persist(next, cx);
-                                        },
-                                        cx,
-                                    )),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex_shrink_0()
-                            .rounded_xl()
-                            .p_4()
-                            .bg(rgb(0xeceefa))
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child(div().font_weight(FontWeight::MEDIUM).child(
-                                if !self.runtime.elevated_terminal_pids.is_empty() {
-                                    if count == 0 {
-                                        "检测到管理员终端，需要切换管理员模式".to_string()
-                                    } else {
-                                        format!("已接入 {count} 个会话；另有管理员终端需要授权")
-                                    }
-                                } else if !self.runtime.errors.is_empty() {
-                                    "部分终端未能接入，请检查权限或重新打开程序".to_string()
-                                } else if count == 0 {
-                                    "正在等待 Windows Terminal 会话".to_string()
-                                } else {
-                                    format!("已发现 {count} 个终端会话 · 自动接入")
-                                },
-                            ))
-                            .child(div().text_xs().text_color(rgb(0x667092)).child(
-                                if !self.runtime.elevated_terminal_pids.is_empty() {
-                                    "软件与终端权限不一致。请点击下方按钮，在 Windows 授权提示中选择“是”。"
-                                } else {
-                                    "打开终端即可使用，无需执行 Nushell 命令；新会话数秒内接入。"
-                                },
-                            ))
-                            .when(!self.runtime.elevated_terminal_pids.is_empty(), |d| {
-                                d.child(
-                                    div()
-                                        .id("terminal-access-admin")
-                                        .text_sm()
-                                        .text_color(rgb(ACCENT))
-                                        .cursor_pointer()
-                                        .child(if self.elevating { "正在请求授权…" } else { "以管理员身份重新启动" })
-                                        .on_click(cx.listener(|view, _, _, cx| view.elevate(cx))),
-                                )
-                            })
-                            .children(self.runtime.sessions.iter().take(3).map(|s| {
-                                div().text_xs().text_color(rgb(0x667092)).child(format!(
-                                    "{} · 已接入",
-                                    match s.shell.as_str() {
-                                        "nu.exe" => "Nushell",
-                                        "powershell.exe" | "pwsh.exe" => "PowerShell",
-                                        "cmd.exe" => "命令提示符",
-                                        other => other,
-                                    }
-                                ))
-                            })),
-                    )
-                    .child(
-                        div()
-                            .flex_shrink_0()
-                            .flex()
-                            .justify_between()
-                            .items_center()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(rgb(MUTED))
-                                    .child(if self.elevated {
-                                        "管理员模式 · 关闭窗口后继续在托盘运行。"
-                                    } else {
-                                        "关闭窗口后继续在托盘运行。管理员终端需要管理员模式。"
-                                    }),
-                            )
-                            .when(!self.elevated, |d| {
-                                d.child(
-                                    div()
-                                        .id("admin-mode")
-                                        .text_xs()
-                                        .text_color(rgb(ACCENT))
-                                        .cursor_pointer()
-                                        .child("切换管理员模式")
-                                        .on_click(cx.listener(|view, _, _, cx| view.elevate(cx))),
-                                )
-                            }),
-                    ),
-            )
-            .child(
-                div()
-                    .px_8()
-                    .py_4()
-                    .bg(rgb(0xffffff))
-                    .border_t_1()
-                    .border_color(rgb(0xe5e8ef))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(rgb(MUTED))
-                            .child(self.notice.clone()),
-                    )
-                    .child(
-                        div()
-                            .id("reset-defaults")
-                            .cursor_pointer()
-                            .px_4()
-                            .py_2()
-                            .rounded_md()
-                            .border_1()
-                            .border_color(rgb(0xdfe3ec))
-                            .child("恢复默认颜色")
-                            .on_click(cx.listener(|view, _, _, cx| {
-                                let mut next = view.options.clone();
-                                next.chinese_color = "#FF7800".into();
-                                next.english_color = "#0077FF".into();
-                                view.persist(next, cx);
-                            })),
-                    ),
-            )
     }
 }
 
@@ -654,42 +287,68 @@ fn run() -> AppResult<()> {
     let agent = agent::start_controller(std::process::id(), &directory)?;
     let startup_error = Rc::new(RefCell::new(None));
     let window_error = startup_error.clone();
-    Application::new().run(move |cx: &mut App| {
-        let bounds = Bounds::centered(None, size(px(900.), px(740.)), cx);
-        let result = cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                window_min_size: Some(size(px(780.), px(620.))),
-                titlebar: Some(TitlebarOptions {
-                    title: Some("Terminal IME · 设置".into()),
-                    ..Default::default()
-                }),
-                show: !background,
-                focus: !background,
-                ..Default::default()
-            },
-            |window, cx| {
-                cx.new(|cx| {
-                    SettingsView::new(
-                        directory,
-                        options,
-                        agent,
-                        Rc::new(instance),
-                        receiver,
-                        window,
-                        cx,
+    gpui_kit::application()
+        .with_assets(ui::AppAssets)
+        .run(move |cx: &mut App| {
+            gpui_kit::init(cx);
+            let stored_size = WindowSize::load(&directory);
+            let restored_size = cx
+                .primary_display()
+                .map(|display| {
+                    let available = display.visible_bounds().size;
+                    stored_size.constrained(
+                        f32::from(available.width) as u32,
+                        f32::from(available.height) as u32,
                     )
                 })
-            },
-        );
-        if let Err(error) = result {
-            *window_error.borrow_mut() = Some(error.to_string());
-            cx.quit();
-        }
-        if !background {
-            cx.activate(true);
-        }
-    });
+                .unwrap_or(stored_size);
+            let bounds = Bounds::centered(
+                None,
+                size(
+                    px(restored_size.width as f32),
+                    px(restored_size.height as f32),
+                ),
+                cx,
+            );
+            let result = gpui_kit::open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    // Platform window constraints use logical pixels; content uses rem-based helpers.
+                    window_min_size: Some(size(
+                        px(WindowSize::MIN.width as f32),
+                        px(WindowSize::MIN.height as f32),
+                    )),
+                    titlebar: Some(TitlebarOptions {
+                        title: Some("Terminal IME · 设置".into()),
+                        ..Default::default()
+                    }),
+                    show: !background,
+                    focus: !background,
+                    ..Default::default()
+                },
+                cx,
+                |window, cx| {
+                    cx.new(|cx| {
+                        SettingsView::new(
+                            directory,
+                            options,
+                            agent,
+                            Rc::new(instance),
+                            receiver,
+                            window,
+                            cx,
+                        )
+                    })
+                },
+            );
+            if let Err(error) = result {
+                *window_error.borrow_mut() = Some(error.to_string());
+                cx.quit();
+            }
+            if !background {
+                cx.activate(true);
+            }
+        });
     if let Some(error) = startup_error.borrow_mut().take() {
         return Err(error.into());
     }

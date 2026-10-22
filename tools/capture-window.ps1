@@ -1,6 +1,7 @@
 param([Parameter(Mandatory)][int]$ProcessId, [Parameter(Mandatory)][string]$OutputPath)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
+if (!('TerminalImeCapture' -as [type])) {
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -14,6 +15,7 @@ public static class TerminalImeCapture {
     [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
 }
 '@
+}
 $process = Get-Process -Id $ProcessId
 if ($process.ProcessName -ne 'TerminalIME') { throw 'Only capture the TerminalIME settings window.' }
 $window = $process.MainWindowHandle
