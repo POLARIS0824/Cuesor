@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use crate::model::{Color, Colors, ImeMode};
 
-pub const HELP: &str = "Terminal IME — Windows Terminal native engine
+pub const HELP: &str = "Cuesor. Windows Terminal cursor-color engine
 
-For the tray and settings app, open TerminalIME.exe beside this executable.
+For the tray and settings app, open Cuesor.exe beside this executable.
 
   start --shell-pid PID [--cn-color #RRGGBB] [--en-color #RRGGBB] [--log FILE]
   stop

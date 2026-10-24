@@ -1,7 +1,7 @@
-param([string]$Executable = (Join-Path $PSScriptRoot '..\target\release\terminal-ime.exe'))
+param([string]$Executable = (Join-Path $PSScriptRoot '..\target\release\cuesor-engine.exe'))
 $ErrorActionPreference = 'Stop'
 $program = (Resolve-Path -LiteralPath $Executable).Path
-$directory = Join-Path $env:LOCALAPPDATA 'TerminalIME'
+$directory = Join-Path $env:LOCALAPPDATA 'Cuesor'
 $prefix = 'storage-check-' + [guid]::NewGuid()
 $report = Join-Path $directory ($prefix + '.json')
 $errorLog = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..\artifacts')).Path ($prefix + '.log')

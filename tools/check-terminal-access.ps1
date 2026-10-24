@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
-public static class TerminalImeAccessCheck {
+public static class CuesorAccessCheck {
  [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr OpenProcess(uint access,bool inherit,uint pid);
  [DllImport("advapi32.dll",SetLastError=true)] static extern bool OpenProcessToken(IntPtr process,uint access,out IntPtr token);
  [DllImport("advapi32.dll",SetLastError=true)] static extern bool GetTokenInformation(IntPtr token,int info,out int value,int length,out int needed);
@@ -23,14 +23,14 @@ public static class TerminalImeAccessCheck {
  }
 }
 '@
-$gui = if ($ProcessId) { Get-Process -Id $ProcessId } else { Get-Process -Name TerminalIME | Select-Object -First 1 }
-if (!$gui -or $gui.ProcessName -ne 'TerminalIME') { throw 'Open Terminal IME before running this check.' }
-$runtime = Get-Content -LiteralPath "$env:LOCALAPPDATA\TerminalIME\runtime.json" -Raw | ConvertFrom-Json
+$gui = if ($ProcessId) { Get-Process -Id $ProcessId } else { Get-Process -Name Cuesor | Select-Object -First 1 }
+if (!$gui -or $gui.ProcessName -ne 'Cuesor') { throw 'Open Cuesor before running this check.' }
+$runtime = Get-Content -LiteralPath "$env:LOCALAPPDATA\Cuesor\runtime.json" -Raw | ConvertFrom-Json
 if ($runtime.controller_pid -ne $gui.Id) { throw 'Runtime status does not belong to the current GUI.' }
-$elevated = [TerminalImeAccessCheck]::Elevated($gui.Id)
+$elevated = [CuesorAccessCheck]::Elevated($gui.Id)
 $terminals = @(Get-Process -Name WindowsTerminal -ErrorAction SilentlyContinue)
 if ($terminals.Count -eq 0) { throw 'Open a Windows Terminal session; permission handling cannot be verified without one.' }
-$blocked = @($terminals | Where-Object { !$elevated -and [TerminalImeAccessCheck]::Elevated($_.Id) } | ForEach-Object Id)
+$blocked = @($terminals | Where-Object { !$elevated -and [CuesorAccessCheck]::Elevated($_.Id) } | ForEach-Object Id)
 foreach ($terminalId in $blocked) {
     if ($runtime.elevated_terminal_pids -notcontains $terminalId) {
         throw "REPRODUCED: elevated Windows Terminal $terminalId exists, but the GUI reports waiting without a permission diagnosis."

@@ -8,7 +8,7 @@ use std::{
     },
 };
 
-use terminal_ime::{
+use cuesor::{
     platform::{wide, AppResult, OwnedHandle},
     session,
 };
@@ -141,9 +141,9 @@ pub fn set_auto_start(enabled: bool, executable: &Path) -> AppResult<()> {
             let command = wide(format!("\"{}\" --background", executable.display()));
             let bytes =
                 std::slice::from_raw_parts(command.as_ptr().cast::<u8>(), command.len() * 2);
-            RegSetValueExW(key, w!("TerminalIME"), 0, REG_SZ, Some(bytes)).ok()
+            RegSetValueExW(key, w!("Cuesor"), 0, REG_SZ, Some(bytes)).ok()
         } else {
-            let result = RegDeleteValueW(key, w!("TerminalIME"));
+            let result = RegDeleteValueW(key, w!("Cuesor"));
             if result == windows::Win32::Foundation::ERROR_FILE_NOT_FOUND {
                 Ok(())
             } else {
@@ -162,7 +162,7 @@ pub fn error_message(message: &str) {
         MessageBoxW(
             None,
             PCWSTR(text.as_ptr()),
-            w!("Terminal IME"),
+            w!("Cuesor"),
             MB_ICONERROR | MB_OK,
         );
     }
@@ -259,7 +259,7 @@ unsafe fn tray_loop(ready: &std::sync::mpsc::Sender<Result<usize, String>>) -> A
     let class = WNDCLASSW {
         lpfnWndProc: Some(tray_proc),
         hInstance: instance.into(),
-        lpszClassName: w!("TerminalIME.Tray"),
+        lpszClassName: w!("Cuesor.Tray"),
         hbrBackground: HBRUSH::default(),
         ..Default::default()
     };
@@ -269,7 +269,7 @@ unsafe fn tray_loop(ready: &std::sync::mpsc::Sender<Result<usize, String>>) -> A
     let hwnd = CreateWindowExW(
         WINDOW_EX_STYLE::default(),
         class.lpszClassName,
-        w!("Terminal IME tray"),
+        w!("Cuesor tray"),
         WINDOW_STYLE::default(),
         0,
         0,
@@ -293,7 +293,7 @@ unsafe fn tray_loop(ready: &std::sync::mpsc::Sender<Result<usize, String>>) -> A
     for (slot, unit) in notification
         .szTip
         .iter_mut()
-        .zip("Terminal IME 双击打开设置，右键打开菜单".encode_utf16())
+        .zip("Cuesor 双击打开设置，右键打开菜单".encode_utf16())
     {
         *slot = unit;
     }
@@ -358,7 +358,7 @@ unsafe extern "system" fn tray_proc(
                         };
                         let _ = AppendMenuW(menu, MF_STRING, 2, action);
                         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, None);
-                        let _ = AppendMenuW(menu, MF_STRING, 3, w!("退出 Terminal IME"));
+                        let _ = AppendMenuW(menu, MF_STRING, 3, w!("退出 Cuesor"));
                         let mut point = POINT::default();
                         let _ = GetCursorPos(&mut point);
                         let _ = SetForegroundWindow(hwnd);

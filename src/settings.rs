@@ -190,12 +190,12 @@ impl Settings {
 }
 
 pub fn data_directory() -> AppResult<PathBuf> {
-    if let Some(value) = std::env::var_os("TERMINAL_IME_DATA_DIR") {
+    if let Some(value) = std::env::var_os("CUESOR_DATA_DIR") {
         return Ok(PathBuf::from(value));
     }
     Ok(
         PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA is unavailable")?)
-            .join("TerminalIME"),
+            .join("Cuesor"),
     )
 }
 
@@ -258,8 +258,7 @@ mod tests {
 
     #[test]
     fn persists_settings_and_rejects_invalid_colors_without_overwriting() {
-        let dir =
-            std::env::temp_dir().join(format!("terminal-ime-settings-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cuesor-settings-test-{}", std::process::id()));
         let settings = Settings {
             chinese_color: "#AA0011".into(),
             appearance: Appearance::Dark,
@@ -284,10 +283,8 @@ mod tests {
 
     #[test]
     fn saves_new_settings_while_a_reader_holds_the_previous_snapshot() {
-        let dir = std::env::temp_dir().join(format!(
-            "terminal-ime-open-reader-test-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("cuesor-open-reader-test-{}", std::process::id()));
         let original = Settings::default();
         original.save(&dir).unwrap();
         let path = dir.join("settings.json");
@@ -325,8 +322,7 @@ mod tests {
 
     #[test]
     fn pre_redesign_settings_keep_colors_and_follow_system_appearance() {
-        let dir =
-            std::env::temp_dir().join(format!("terminal-ime-legacy-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cuesor-legacy-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("settings.json"),
             r##"{"enabled":false,"chinese_color":"#20A78B","english_color":"#0077FF","auto_start":true}"##,
@@ -346,8 +342,7 @@ mod tests {
 
     #[test]
     fn all_six_schemes_keep_independent_colors_across_restart_and_reset() {
-        let dir =
-            std::env::temp_dir().join(format!("terminal-ime-schemes-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cuesor-schemes-test-{}", std::process::id()));
         let mut settings = Settings::default();
         for index in 0..6 {
             settings.select_scheme(index);
@@ -380,8 +375,7 @@ mod tests {
 
     #[test]
     fn window_size_round_trips_and_restores_within_the_available_display() {
-        let dir =
-            std::env::temp_dir().join(format!("terminal-ime-window-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("cuesor-window-test-{}", std::process::id()));
         assert_eq!(WindowSize::load(&dir), WindowSize::default());
         let resized = WindowSize {
             width: 1024,

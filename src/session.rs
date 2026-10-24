@@ -35,11 +35,7 @@ struct Names {
 
 impl Names {
     fn new(session: &str) -> AppResult<Self> {
-        let key = format!(
-            "Local\\TerminalIME-v1-{}-{}",
-            identity()?,
-            session_id(session)?
-        );
+        let key = format!("Local\\Cuesor-v1-{}-{}", identity()?, session_id(session)?);
         Ok(Self {
             mutex: wide(format!("{key}-worker")),
             stop: wide(format!("{key}-stop")),
@@ -100,7 +96,7 @@ pub fn current_session() -> AppResult<String> {
 }
 
 pub fn desktop_scope() -> AppResult<String> {
-    Ok(format!("Local\\TerminalIME-desktop-{}", identity()?))
+    Ok(format!("Local\\Cuesor-desktop-{}", identity()?))
 }
 
 pub fn desktop_running() -> bool {
@@ -117,7 +113,7 @@ pub fn desktop_running() -> bool {
 
 pub(crate) fn console_lease() -> AppResult<Option<OwnedHandle>> {
     let name = wide(format!(
-        "Local\\TerminalIME-console-{}-{}",
+        "Local\\Cuesor-console-{}-{}",
         identity()?,
         unsafe { GetConsoleWindow() }.0 as usize
     ));

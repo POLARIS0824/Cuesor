@@ -35,8 +35,8 @@ for ($sampleIndex = 0; $sampleIndex -lt $Samples; $sampleIndex++) {
         foreach ($oldFile in @($readyFile, $metricFile)) {
             if (Test-Path -LiteralPath $oldFile) { Remove-Item -LiteralPath $oldFile }
         }
-        $arguments = @('-w','TerminalIME-benchmark','new-tab','-p','Windows PowerShell',
-            '--title','Terminal IME startup benchmark','--suppressApplicationTitle','-d',$projectRoot,
+        $arguments = @('-w','Cuesor-benchmark','new-tab','-p','Windows PowerShell',
+            '--title','Cuesor startup benchmark','--suppressApplicationTitle','-d',$projectRoot,
             $nuExe,'--no-history','--config',$configFile,'-e',"source $($entryFile.Replace('\','/'))")
         & wt.exe @arguments
         if ($LASTEXITCODE -ne 0) { throw "Windows Terminal launch failed: $label" }
@@ -65,7 +65,7 @@ for ($sampleIndex = 0; $sampleIndex -lt $Samples; $sampleIndex++) {
             $cleaned = $true
             if ($enabled) {
                 $env:WT_SESSION = $ready.session
-                $tool = Join-Path $projectRoot 'target\release\terminal-ime.exe'
+                $tool = Join-Path $projectRoot 'target\release\cuesor-engine.exe'
                 for ($retry = 0; $retry -lt 20; $retry++) {
                     $state = & $tool status | ConvertFrom-Json
                     if (!$state.running) { break }

@@ -1,9 +1,13 @@
 [package]
-name = "terminal-ime"
+name = "cuesor"
 version = "0.2.0"
 edition = "2021"
 description = "Windows Terminal cursor colors that follow the active IME mode"
 publish = false
+
+[[bin]]
+name = "cuesor-engine"
+path = "src/main.rs"
 
 [workspace]
 members = ["desktop"]

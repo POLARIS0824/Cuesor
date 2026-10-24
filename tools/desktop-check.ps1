@@ -1,4 +1,4 @@
-param([string]$Executable = (Join-Path $PSScriptRoot '..\target\release\TerminalIME.exe'), [switch]$KeepArtifacts)
+param([string]$Executable = (Join-Path $PSScriptRoot '..\target\release\Cuesor.exe'), [switch]$KeepArtifacts)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
 $program = (Resolve-Path -LiteralPath $Executable).Path
@@ -13,7 +13,7 @@ Add-Type @'
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
-public static class TerminalImeDesktopCheck {
+public static class CuesorDesktopCheck {
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; public int Width { get { return Right-Left; } } public int Height { get { return Bottom-Top; } } }
  public delegate bool Callback(IntPtr window,IntPtr data);
  [DllImport("user32.dll")] public static extern bool EnumWindows(Callback callback,IntPtr data);
@@ -43,7 +43,7 @@ public static class TerminalImeDesktopCheck {
  }
 }
 '@
-$oldDpiContext = [TerminalImeDesktopCheck]::SetThreadDpiAwarenessContext([IntPtr](-4))
+$oldDpiContext = [CuesorDesktopCheck]::SetThreadDpiAwarenessContext([IntPtr](-4))
 function Wait-Condition([scriptblock]$Condition, [string]$Message) {
     $deadline = [DateTime]::UtcNow.AddSeconds(10)
     while (!(& $Condition)) {
@@ -78,19 +78,19 @@ function Set-CursorColor([bool]$Chinese,[int]$Rgb) {
     $label = if ($Chinese) { '自定义中文输入光标颜色' } else { '自定义英文输入光标颜色' }
     $property = if ($Chinese) { 'chinese_color' } else { 'english_color' }
     Invoke-SettingControl $label
-    Wait-Condition { [TerminalImeDesktopCheck]::FindDialog($gui.Id,$window) -ne [IntPtr]::Zero } 'Color dialog did not open.'
-    $dialog = [TerminalImeDesktopCheck]::FindDialog($gui.Id,$window)
-    $message = [TerminalImeDesktopCheck]::RegisterWindowMessageW('commdlg_SetRGBColor')
+    Wait-Condition { [CuesorDesktopCheck]::FindDialog($gui.Id,$window) -ne [IntPtr]::Zero } 'Color dialog did not open.'
+    $dialog = [CuesorDesktopCheck]::FindDialog($gui.Id,$window)
+    $message = [CuesorDesktopCheck]::RegisterWindowMessageW('commdlg_SetRGBColor')
     $bgr = (($Rgb -band 255) -shl 16) -bor ($Rgb -band 65280) -bor ($Rgb -shr 16)
-    $null = [TerminalImeDesktopCheck]::PostMessageW($dialog,$message,[UIntPtr]::Zero,[IntPtr]$bgr)
-    $null = [TerminalImeDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]1,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($dialog,$message,[UIntPtr]::Zero,[IntPtr]$bgr)
+    $null = [CuesorDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]1,[IntPtr]::Zero)
     $expected = '#{0:X6}' -f $Rgb
     Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).$property -eq $expected } "Color did not save: $expected"
 }
-$oldDataDirectory = $env:TERMINAL_IME_DATA_DIR
+$oldDataDirectory = $env:CUESOR_DATA_DIR
 $oldSession = $env:WT_SESSION
-$env:TERMINAL_IME_DATA_DIR = $dataDir
-$backend = Join-Path ([IO.Path]::GetDirectoryName($program)) 'terminal-ime.exe'
+$env:CUESOR_DATA_DIR = $dataDir
+$backend = Join-Path ([IO.Path]::GetDirectoryName($program)) 'cuesor-engine.exe'
 $legacyTested = $false
 $existingSession = $null
 $gui = $null
@@ -112,34 +112,34 @@ try {
     if ($gui.HasExited) { throw "Settings process exited: $($gui.ExitCode)." }
     if ($legacyTested) { Wait-Condition { !(& $backend status | ConvertFrom-Json).running } 'Legacy worker did not yield to the desktop app.' }
     $window = $gui.MainWindowHandle
-    $defaultBounds = [TerminalImeDesktopCheck+Rect]::new()
-    $null = [TerminalImeDesktopCheck]::GetWindowRect($window,[ref]$defaultBounds)
-    $scale = [TerminalImeDesktopCheck]::GetDpiForWindow($window)/96.0
+    $defaultBounds = [CuesorDesktopCheck+Rect]::new()
+    $null = [CuesorDesktopCheck]::GetWindowRect($window,[ref]$defaultBounds)
+    $scale = [CuesorDesktopCheck]::GetDpiForWindow($window)/96.0
     if ($defaultBounds.Height/$scale -gt 640) { throw 'Default window is still too tall.' }
-    $tray = [TerminalImeDesktopCheck]::FindWindowW('TerminalIME.Tray','Terminal IME tray')
+    $tray = [CuesorDesktopCheck]::FindWindowW('Cuesor.Tray','Cuesor tray')
     $trayPid = [uint32]0
-    $null = [TerminalImeDesktopCheck]::GetWindowThreadProcessId($tray,[ref]$trayPid)
+    $null = [CuesorDesktopCheck]::GetWindowThreadProcessId($tray,[ref]$trayPid)
     if ($tray -eq [IntPtr]::Zero -or $trayPid -ne $gui.Id) { throw 'No owned tray window.' }
-    $null = [TerminalImeDesktopCheck]::PostMessageW($window,0x10,[UIntPtr]::Zero,[IntPtr]::Zero)
-    Wait-Condition { ![TerminalImeDesktopCheck]::IsWindowVisible($window) } 'Close did not hide settings.'
+    $null = [CuesorDesktopCheck]::PostMessageW($window,0x10,[UIntPtr]::Zero,[IntPtr]::Zero)
+    Wait-Condition { ![CuesorDesktopCheck]::IsWindowVisible($window) } 'Close did not hide settings.'
     if ($gui.HasExited) { throw 'Closing settings killed the tray app.' }
     $second = Start-Process -FilePath $program -PassThru -WindowStyle Hidden
     if (!$second.WaitForExit(5000)) { throw 'Second launch did not reuse the existing instance.' }
-    Wait-Condition { [TerminalImeDesktopCheck]::IsWindowVisible($window) } 'Second launch did not restore settings.'
+    Wait-Condition { [CuesorDesktopCheck]::IsWindowVisible($window) } 'Second launch did not restore settings.'
     $settingsPath = Join-Path $dataDir 'settings.json'
     Invoke-SettingControl '自定义中文输入光标颜色'
-    Wait-Condition { [TerminalImeDesktopCheck]::FindDialog($gui.Id,$window) -ne [IntPtr]::Zero } 'Custom color dialog did not open (or GUI crashed).'
-    $dialog = [TerminalImeDesktopCheck]::FindDialog($gui.Id,$window)
+    Wait-Condition { [CuesorDesktopCheck]::FindDialog($gui.Id,$window) -ne [IntPtr]::Zero } 'Custom color dialog did not open (or GUI crashed).'
+    $dialog = [CuesorDesktopCheck]::FindDialog($gui.Id,$window)
     # Use the documented common-dialog selection message, not private control IDs.
-    $setRgbMessage = [TerminalImeDesktopCheck]::RegisterWindowMessageW('commdlg_SetRGBColor')
-    $null = [TerminalImeDesktopCheck]::PostMessageW($dialog,$setRgbMessage,[UIntPtr]::Zero,[IntPtr]0xff0000)
-    $null = [TerminalImeDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]1,[IntPtr]::Zero)
+    $setRgbMessage = [CuesorDesktopCheck]::RegisterWindowMessageW('commdlg_SetRGBColor')
+    $null = [CuesorDesktopCheck]::PostMessageW($dialog,$setRgbMessage,[UIntPtr]::Zero,[IntPtr]0xff0000)
+    $null = [CuesorDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]1,[IntPtr]::Zero)
     Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).chinese_color -eq '#0000FF' } 'Custom color was not saved.'
     Invoke-SettingControl '自定义中文输入光标颜色'
-    Wait-Condition { [TerminalImeDesktopCheck]::FindDialog($gui.Id,$window) -ne [IntPtr]::Zero } 'Second color dialog did not open.'
-    $dialog = [TerminalImeDesktopCheck]::FindDialog($gui.Id,$window)
-    $null = [TerminalImeDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]2,[IntPtr]::Zero)
-    Wait-Condition { [TerminalImeDesktopCheck]::FindDialog($gui.Id,$window) -eq [IntPtr]::Zero } 'Color cancel did not close the dialog.'
+    Wait-Condition { [CuesorDesktopCheck]::FindDialog($gui.Id,$window) -ne [IntPtr]::Zero } 'Second color dialog did not open.'
+    $dialog = [CuesorDesktopCheck]::FindDialog($gui.Id,$window)
+    $null = [CuesorDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]2,[IntPtr]::Zero)
+    Wait-Condition { [CuesorDesktopCheck]::FindDialog($gui.Id,$window) -eq [IntPtr]::Zero } 'Color cancel did not close the dialog.'
     if ((Read-SharedText $settingsPath | ConvertFrom-Json).chinese_color -ne '#0000FF') { throw 'Cancel changed the saved color.' }
     $schemeNames = @('经典','珊瑚','暮紫','极光','柔粉','暖砂')
     $customColors = @()
@@ -154,13 +154,13 @@ try {
         Set-CursorColor $false $en
         $customColors += [PSCustomObject]@{Chinese=('#{0:X6}' -f $cn);English=('#{0:X6}' -f $en)}
     }
-    $null = [TerminalImeDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]3,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]3,[IntPtr]::Zero)
     if (!$gui.WaitForExit(5000)) { throw 'GUI did not exit after editing the schemes.' }
     $gui = Start-Process -FilePath $program -PassThru
     Wait-Condition { $gui.Refresh(); $gui.HasExited -or $gui.MainWindowHandle -ne 0 } 'Color scheme restart did not create settings.'
     if ($gui.HasExited) { throw 'Color scheme restart exited unexpectedly.' }
     $window = $gui.MainWindowHandle
-    $tray = [TerminalImeDesktopCheck]::FindWindowW('TerminalIME.Tray','Terminal IME tray')
+    $tray = [CuesorDesktopCheck]::FindWindowW('Cuesor.Tray','Cuesor tray')
     for ($index=0; $index -lt 6; $index++) {
         Invoke-SettingControl ('配色{0}：{1}' -f ($index+1),$schemeNames[$index])
         Wait-Condition {
@@ -195,65 +195,65 @@ try {
     $control = Get-SettingControl '启用光标颜色指示'
     $control.SetFocus()
     Start-Sleep -Milliseconds 150
-    $null = [TerminalImeDesktopCheck]::PostMessageW($window,0x100,[UIntPtr]0x20,[IntPtr]::Zero)
-    $null = [TerminalImeDesktopCheck]::PostMessageW($window,0x101,[UIntPtr]0x20,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($window,0x100,[UIntPtr]0x20,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($window,0x101,[UIntPtr]0x20,[IntPtr]::Zero)
     Wait-Condition { !(Read-SharedText $settingsPath | ConvertFrom-Json).enabled } 'Keyboard Space did not toggle the switch.'
     Start-Sleep -Milliseconds 300
     & (Join-Path $PSScriptRoot 'capture-window.ps1') -ProcessId $gui.Id -OutputPath (Join-Path $dataDir 'paused-focus.png')
-    $null = [TerminalImeDesktopCheck]::PostMessageW($window,0x100,[UIntPtr]0x09,[IntPtr]::Zero)
-    $null = [TerminalImeDesktopCheck]::PostMessageW($window,0x101,[UIntPtr]0x09,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($window,0x100,[UIntPtr]0x09,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($window,0x101,[UIntPtr]0x09,[IntPtr]::Zero)
     Wait-Condition { [System.Windows.Automation.AutomationElement]::FocusedElement.Current.Name -eq '自定义中文输入光标颜色' } 'Tab did not advance to the color editor.'
-    $null = [TerminalImeDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]2,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]2,[IntPtr]::Zero)
     Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).enabled } 'Tray resume after keyboard toggle failed.'
-    $scale = [TerminalImeDesktopCheck]::GetDpiForWindow($window)/96.0
-    $null = [TerminalImeDesktopCheck]::SetWindowPos($window,[IntPtr]::Zero,0,0,[int](760*$scale),[int](520*$scale),6)
+    $scale = [CuesorDesktopCheck]::GetDpiForWindow($window)/96.0
+    $null = [CuesorDesktopCheck]::SetWindowPos($window,[IntPtr]::Zero,0,0,[int](760*$scale),[int](520*$scale),6)
     Start-Sleep -Milliseconds 400
     foreach ($name in @('自定义中文输入光标颜色','自定义英文输入光标颜色','外观：深色','重置当前配色','配色6：暖砂')) {
         if ((Get-SettingControl $name).Current.IsOffscreen) { throw "Control is clipped at minimum size: $name" }
     }
     & (Join-Path $PSScriptRoot 'capture-window.ps1') -ProcessId $gui.Id -OutputPath (Join-Path $dataDir 'minimum.png')
-    $null = [TerminalImeDesktopCheck]::SetWindowPos($window,[IntPtr]::Zero,0,0,[int](940*$scale),[int](620*$scale),6)
-    $resizedBounds = [TerminalImeDesktopCheck+Rect]::new()
-    $null = [TerminalImeDesktopCheck]::GetWindowRect($window,[ref]$resizedBounds)
+    $null = [CuesorDesktopCheck]::SetWindowPos($window,[IntPtr]::Zero,0,0,[int](940*$scale),[int](620*$scale),6)
+    $resizedBounds = [CuesorDesktopCheck+Rect]::new()
+    $null = [CuesorDesktopCheck]::GetWindowRect($window,[ref]$resizedBounds)
     $windowStatePath = Join-Path $dataDir 'window.json'
     Wait-Condition { (Test-Path -LiteralPath $windowStatePath) -and (Read-SharedText $windowStatePath | ConvertFrom-Json).width -ge 900 } 'Window resize did not persist.'
     $normalSize = Read-SharedText $windowStatePath
-    $null = [TerminalImeDesktopCheck]::ShowWindow($window,3)
+    $null = [CuesorDesktopCheck]::ShowWindow($window,3)
     Start-Sleep -Milliseconds 600
-    $null = [TerminalImeDesktopCheck]::ShowWindow($window,6)
+    $null = [CuesorDesktopCheck]::ShowWindow($window,6)
     Start-Sleep -Milliseconds 600
     if ((Read-SharedText $windowStatePath) -ne $normalSize) { throw 'Maximize or minimize overwrote the normal size.' }
-    $null = [TerminalImeDesktopCheck]::ShowWindow($window,9)
-    $null = [TerminalImeDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]2,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::ShowWindow($window,9)
+    $null = [CuesorDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]2,[IntPtr]::Zero)
     Wait-Condition { !(Read-SharedText $settingsPath | ConvertFrom-Json).enabled } 'Tray pause did not persist.'
-    $null = [TerminalImeDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]2,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]2,[IntPtr]::Zero)
     Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).enabled } 'Tray resume did not persist.'
     Start-Sleep -Seconds 3
     $runtime = Read-SharedText (Join-Path $dataDir 'runtime.json') | ConvertFrom-Json
     if ($legacyTested -and $runtime.sessions.shell_pid -notcontains $existingSession.shell_pid) { throw 'Desktop did not take over the legacy console.' }
-    $ownedProcesses = @($runtime.worker_pids) + @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $gui.Id -and $_.Name -eq 'terminal-ime.exe' } | ForEach-Object ProcessId)
+    $ownedProcesses = @($runtime.worker_pids) + @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $gui.Id -and $_.Name -eq 'cuesor-engine.exe' } | ForEach-Object ProcessId)
     $children = @($ownedProcesses | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
-    $null = [TerminalImeDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]3,[IntPtr]::Zero)
+    $null = [CuesorDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]3,[IntPtr]::Zero)
     if (!$gui.WaitForExit(5000)) { throw 'Tray exit did not stop the application.' }
     foreach ($child in $children) { if (!$child.WaitForExit(5000)) { throw "Worker/agent $($child.Id) survived the application." } }
     $gui = Start-Process -FilePath $program -PassThru
     Wait-Condition { $gui.Refresh(); $gui.HasExited -or $gui.MainWindowHandle -ne 0 } 'Restart did not create settings.'
     if ($gui.HasExited) { throw 'Restart exited unexpectedly.' }
     $window = $gui.MainWindowHandle
-    $reopenedBounds = [TerminalImeDesktopCheck+Rect]::new()
-    $null = [TerminalImeDesktopCheck]::GetWindowRect($window,[ref]$reopenedBounds)
+    $reopenedBounds = [CuesorDesktopCheck+Rect]::new()
+    $null = [CuesorDesktopCheck]::GetWindowRect($window,[ref]$reopenedBounds)
     if ([math]::Abs($reopenedBounds.Width-$resizedBounds.Width) -gt 2 -or [math]::Abs($reopenedBounds.Height-$resizedBounds.Height) -gt 2) { throw 'Saved window dimensions were not restored after restart.' }
     Wait-Condition {
         $control = Get-SettingControl '配色2：珊瑚'
         $control -and $control.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On
     } 'Color scheme selection was not restored after restart.'
-    $tray = [TerminalImeDesktopCheck]::FindWindowW('TerminalIME.Tray','Terminal IME tray')
+    $tray = [CuesorDesktopCheck]::FindWindowW('Cuesor.Tray','Cuesor tray')
     Wait-Condition {
         $control = Get-SettingControl '外观：深色'
         $control -and $control.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On
     } 'Saved appearance was not restored after restart.'
-    $children = @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $gui.Id -and $_.Name -eq 'terminal-ime.exe' } | ForEach-Object { Get-Process -Id $_.ProcessId })
-    $null = [TerminalImeDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]3,[IntPtr]::Zero)
+    $children = @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $gui.Id -and $_.Name -eq 'cuesor-engine.exe' } | ForEach-Object { Get-Process -Id $_.ProcessId })
+    $null = [CuesorDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]3,[IntPtr]::Zero)
     if (!$gui.WaitForExit(5000)) { throw 'Restarted GUI did not exit.' }
     foreach ($child in $children) { if (!$child.WaitForExit(5000)) { throw 'Restarted controller did not exit.' } }
     $verdict = [PSCustomObject]@{
@@ -277,13 +277,13 @@ try {
     }
     if ($legacyTested) { & $backend stop }
     $env:WT_SESSION = $oldSession
-    $env:TERMINAL_IME_DATA_DIR = $oldDataDirectory
+    $env:CUESOR_DATA_DIR = $oldDataDirectory
     if ($gui -and !$gui.HasExited) {
-        $ownedTray = [TerminalImeDesktopCheck]::FindWindowW('TerminalIME.Tray','Terminal IME tray')
+        $ownedTray = [CuesorDesktopCheck]::FindWindowW('Cuesor.Tray','Cuesor tray')
         $ownerPid = [uint32]0
-        $null = [TerminalImeDesktopCheck]::GetWindowThreadProcessId($ownedTray,[ref]$ownerPid)
+        $null = [CuesorDesktopCheck]::GetWindowThreadProcessId($ownedTray,[ref]$ownerPid)
         if ($ownerPid -eq $gui.Id) {
-            $null = [TerminalImeDesktopCheck]::PostMessageW($ownedTray,0x111,[UIntPtr]3,[IntPtr]::Zero)
+            $null = [CuesorDesktopCheck]::PostMessageW($ownedTray,0x111,[UIntPtr]3,[IntPtr]::Zero)
             $null = $gui.WaitForExit(5000)
         }
     }
@@ -293,6 +293,6 @@ try {
         if (!$resolved.StartsWith($expectedPrefix,[StringComparison]::OrdinalIgnoreCase) -or ((Get-Item -LiteralPath $resolved).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe temporary cleanup path.' }
         Remove-Item -LiteralPath $resolved -Recurse -Force
     }
-    $null = [TerminalImeDesktopCheck]::SetThreadDpiAwarenessContext($oldDpiContext)
+    $null = [CuesorDesktopCheck]::SetThreadDpiAwarenessContext($oldDpiContext)
 
 }

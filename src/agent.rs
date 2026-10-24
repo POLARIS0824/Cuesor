@@ -116,8 +116,8 @@ fn discover_report() -> AppResult<DiscoveryReport> {
             if pid == std::process::id()
                 || matches!(
                     name.to_ascii_lowercase().as_str(),
-                    "terminal-ime.exe"
-                        | "terminalime.exe"
+                    "cuesor-engine.exe"
+                        | "cuesor.exe"
                         | "openconsole.exe"
                         | "conhost.exe"
                         | "windowsterminal.exe"
@@ -206,7 +206,7 @@ struct Worker {
 
 fn ready_name(console: usize, created: u64) -> AppResult<Vec<u16>> {
     Ok(wide(format!(
-        "Local\\TerminalIME-auto-{}-{console}-{created}-ready",
+        "Local\\Cuesor-auto-{}-{console}-{created}-ready",
         session::identity()?
     )))
 }
@@ -225,9 +225,9 @@ fn is_ready(session: &ConsoleSession) -> bool {
 
 pub fn start_controller(controller_pid: u32, data_dir: &Path) -> AppResult<OwnedHandle> {
     let owner = session::shell_process(controller_pid)?;
-    let executable = std::env::current_exe()?.with_file_name("terminal-ime.exe");
+    let executable = std::env::current_exe()?.with_file_name("cuesor-engine.exe");
     if !executable.is_file() {
-        return Err("同目录缺少 terminal-ime.exe，请使用完整构建目录".into());
+        return Err("同目录缺少 cuesor-engine.exe，请使用完整构建目录".into());
     }
     let args = vec![
         executable.into_os_string(),
@@ -335,7 +335,7 @@ fn worker(
     let controller = checked_process(controller_pid, created)?;
     let shell = checked_process(shell_pid, shell_created)?;
     let mutex_name = wide(format!(
-        "Local\\TerminalIME-auto-{}-{console}-{shell_created}",
+        "Local\\Cuesor-auto-{}-{console}-{shell_created}",
         session::identity()?
     ));
     let mutex = OwnedHandle(unsafe { CreateMutexW(None, false, PCWSTR(mutex_name.as_ptr()))? });

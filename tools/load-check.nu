@@ -1,7 +1,7 @@
 # A noninteractive, short-lived test host. Main is invoked only as a Nu script.
 const root = path self ..
 def main [report_dir: path] {
-    let tool = ($root | path join target release terminal-ime.exe)
+    let tool = ($root | path join target release cuesor-engine.exe)
     mkdir $report_dir
     let log = ($report_dir | path join $'worker-($env.WT_SESSION).jsonl')
     ^$tool start --shell-pid $nu.pid --log $log

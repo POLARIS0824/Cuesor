@@ -1,4 +1,8 @@
 use super::{native, native_hwnd, SettingsView};
+use cuesor::{
+    model::Color,
+    settings::{default_schemes, Appearance, SCHEME_NAMES},
+};
 use gpui::{prelude::*, *};
 use gpui_kit::{
     assets::IconName,
@@ -8,10 +12,6 @@ use gpui_kit::{
         scroll::ScrollableElement,
         ActiveTheme, Disableable, Icon, Selectable, Sizable, Theme, ThemeMode,
     },
-};
-use terminal_ime::{
-    model::Color,
-    settings::{default_schemes, Appearance, SCHEME_NAMES},
 };
 
 // Kit's default asset source embeds its component icons, not the full catalog.
@@ -262,7 +262,7 @@ impl SettingsView {
                 IconName::CircleAlert,
                 theme.danger,
                 "后台连接已停止".to_owned(),
-                Some("请从系统托盘退出，再重新打开 Terminal IME。"),
+                Some("请从系统托盘退出，再重新打开 Cuesor。"),
             )
         } else if blocked {
             (
@@ -276,7 +276,7 @@ impl SettingsView {
                 IconName::CircleAlert,
                 theme.warning,
                 "部分会话未能接入".to_owned(),
-                Some("请检查终端权限，或退出后重新打开 Terminal IME。"),
+                Some("请检查终端权限，或退出后重新打开 Cuesor。"),
             )
         } else if !self.options.enabled {
             (
@@ -495,11 +495,7 @@ impl Render for SettingsView {
                     .border_b(px(0.5))
                     .border_color(theme.border)
                     .child(Icon::new(IconName::Terminal).text_color(theme.muted_foreground))
-                    .child(
-                        div()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("Terminal IME"),
-                    )
+                    .child(div().font_weight(FontWeight::SEMIBOLD).child("Cuesor"))
                     .child(div().flex_1())
                     .child(self.appearance_control(cx)),
             )

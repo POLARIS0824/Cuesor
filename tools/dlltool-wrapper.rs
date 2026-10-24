@@ -10,14 +10,14 @@ fn main() {
     ) {
         if let Some(path) = arguments.get(output + 1) {
             let mut temporary = PathBuf::from(path);
-            temporary.set_file_name(format!("terminal-ime-dlltool-{}-", std::process::id()));
+            temporary.set_file_name(format!("cuesor-dlltool-{}-", std::process::id()));
             if prefix + 1 < arguments.len() {
                 arguments[prefix + 1] = temporary.into_os_string();
             }
         }
     }
     let executable =
-        std::env::var_os("TERMINAL_IME_DLLTOOL").expect("real dlltool path is required");
+        std::env::var_os("CUESOR_DLLTOOL").expect("real dlltool path is required");
     let status = Command::new(executable)
         .args(arguments)
         .status()

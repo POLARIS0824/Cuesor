@@ -3,7 +3,7 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $reportDir = Join-Path $projectRoot ('artifacts\load-' + [guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
 $nuExe = (Get-Command nu.exe).Source
-$tool = Join-Path $projectRoot 'target\release\terminal-ime.exe'
+$tool = Join-Path $projectRoot 'target\release\cuesor-engine.exe'
 $nuScript = Join-Path $PSScriptRoot 'load-check.nu'
 $records = @()
 $results = @()
@@ -11,8 +11,8 @@ $launched = 0
 try {
     foreach ($count in @(1,5,10)) {
         while ($launched -lt $count) {
-            $arguments = @('-w','TerminalIME-load-test','new-tab','-p','Windows PowerShell',
-                '--title','Terminal IME load test','--suppressApplicationTitle','-d',$projectRoot,
+            $arguments = @('-w','Cuesor-load-test','new-tab','-p','Windows PowerShell',
+                '--title','Cuesor load test','--suppressApplicationTitle','-d',$projectRoot,
                 $nuExe,'-n','--no-history',$nuScript,$reportDir)
             & wt.exe @arguments
             $launched++

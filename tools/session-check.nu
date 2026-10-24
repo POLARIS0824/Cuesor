@@ -1,6 +1,6 @@
 # Run with nu -n -e 'source .../tools/session-check.nu' inside Windows Terminal.
 const root = path self ..
-let tool = ($root | path join target release terminal-ime.exe)
+let tool = ($root | path join target release cuesor-engine.exe)
 let artifacts = ($root | path join artifacts)
 mkdir $artifacts
 let session = $env.WT_SESSION
@@ -22,6 +22,6 @@ let duplicate_start = (timeit { ^$tool start --shell-pid $nu.pid })
     duplicate_start_ms: ($duplicate_start / 1ms)
     log: $log
 } | to json | save --force ($artifacts | path join $'session-($session).json')
-print $'Terminal IME running: ($ready). Chinese=orange, English=blue.'
+print $'Cuesor running: ($ready). Chinese=orange, English=blue.'
 print 'This is a normal editable Nu prompt. Try IME switching, typing, completion and Ctrl+C.'
-print 'Run ./target/release/terminal-ime.exe stop to stop and restore the theme color.'
+print 'Run ./target/release/cuesor-engine.exe stop to stop and restore the theme color.'

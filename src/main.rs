@@ -1,4 +1,4 @@
-use terminal_ime::{agent, cli, model, platform, session};
+use cuesor::{agent, cli, model, platform, session};
 
 use cli::{Command, Probe};
 use model::Colors;
@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 fn main() {
     if let Err(error) = execute() {
         if !std::env::args().nth(1).is_some_and(|arg| arg == "_worker") {
-            eprintln!("terminal-ime: {error}");
+            eprintln!("cuesor-engine: {error}");
         }
         std::process::exit(1);
     }
@@ -34,7 +34,7 @@ fn execute() -> AppResult<()> {
         Command::Probe(options) => probe(options),
         Command::Reset => platform::write_sequence(model::RESET_CURSOR),
         Command::Version => {
-            println!("terminal-ime {}", env!("CARGO_PKG_VERSION"));
+            println!("cuesor-engine {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
         Command::Help => {

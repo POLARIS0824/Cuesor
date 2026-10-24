@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory)][ValidateSet('Launch','Doctor','Drive','Snapshot','Cleanup')][string]$Action,
     [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$')][string]$RunId,
-    [string]$Executable = (Join-Path $PSScriptRoot '..\target\release\TerminalIME.exe'),
+    [string]$Executable = (Join-Path $PSScriptRoot '..\target\release\Cuesor.exe'),
     [ValidateSet('Appearance','Colors','Tray','Pause')][string]$Feature = 'Appearance'
 )
 $ErrorActionPreference = 'Stop'
@@ -13,7 +13,7 @@ using System;
 using System.Text;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-public static class TerminalImeVerify {
+public static class CuesorVerify {
     public delegate bool Callback(IntPtr window, IntPtr data);
     [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
     public struct Entry {
@@ -101,10 +101,10 @@ function Get-Owned($Owner) {
 }
 function Save-State { Write-Json $state $statePath }
 function Remember-Children {
-    $entries = [TerminalImeVerify]::Processes()
+    $entries = [CuesorVerify]::Processes()
     $parents = @($state.gui.pid)
     for ($depth=0; $depth -lt 6 -and $parents.Count; $depth++) {
-        $children = @($entries | Where-Object { $_.Parent -in $parents -and $_.Name -ieq 'terminal-ime.exe' })
+        $children = @($entries | Where-Object { $_.Parent -in $parents -and $_.Name -ieq 'cuesor-engine.exe' })
         $parents = @($children | ForEach-Object Pid)
         foreach ($entry in $children) {
             $process = Get-Process -Id $entry.Pid -ErrorAction SilentlyContinue
@@ -146,22 +146,22 @@ function Assert-Selected([string]$Name) {
     }
 }
 function Get-Tray {
-    $tray = [TerminalImeVerify]::FindWindowW('TerminalIME.Tray','Terminal IME tray')
+    $tray = [CuesorVerify]::FindWindowW('Cuesor.Tray','Cuesor tray')
     $ownerId = [uint32]0
-    $null = [TerminalImeVerify]::GetWindowThreadProcessId($tray,[ref]$ownerId)
+    $null = [CuesorVerify]::GetWindowThreadProcessId($tray,[ref]$ownerId)
     if ($tray -eq [IntPtr]::Zero -or $ownerId -ne $state.gui.pid) { throw 'Tray HWND does not belong to the owned GUI.' }
     $tray
 }
 function Tray-Command([int]$Command) {
     Record 'action' @{method='owned tray WM_COMMAND'; command=$Command; explorer_gesture=$false}
-    $null = [TerminalImeVerify]::PostMessageW((Get-Tray),0x111,[UIntPtr]$Command,[IntPtr]::Zero)
+    $null = [CuesorVerify]::PostMessageW((Get-Tray),0x111,[UIntPtr]$Command,[IntPtr]::Zero)
 }
 function Doctor {
     $gui = Get-Gui
     if ((Get-FileHash -LiteralPath $state.executable).Hash -ne $state.gui_sha256 -or (Get-FileHash -LiteralPath $state.backend).Hash -ne $state.backend_sha256) {
         throw 'Executable bytes changed since Launch; clean up and launch the intended build again.'
     }
-    if (!$gui.MainWindowHandle -or ![TerminalImeVerify]::IsWindowVisible($gui.MainWindowHandle)) { throw 'The owned settings window is hidden or unavailable.' }
+    if (!$gui.MainWindowHandle -or ![CuesorVerify]::IsWindowVisible($gui.MainWindowHandle)) { throw 'The owned settings window is hidden or unavailable.' }
     $null = Get-Tray
     foreach ($name in @('启用光标颜色指示','自定义中文输入光标颜色','外观：深色','配色6：暖砂')) {
         if (!(Get-Control $name)) { throw "Expected accessible control is missing: $name" }
@@ -169,8 +169,8 @@ function Doctor {
     $settings = Read-Json (Join-Path $dataDir 'settings.json')
     $runtime = Read-Json (Join-Path $dataDir 'runtime.json')
     if ($settings.color_schemes.Count -ne 6 -or $runtime.controller_pid -ne $gui.Id) { throw 'Settings/runtime do not identify a ready owned instance.' }
-    $entries = [TerminalImeVerify]::Processes()
-    if (!@($entries | Where-Object { $_.Parent -eq $gui.Id -and $_.Name -ieq 'terminal-ime.exe' }).Count) { throw 'The discovery controller is not running.' }
+    $entries = [CuesorVerify]::Processes()
+    if (!@($entries | Where-Object { $_.Parent -eq $gui.Id -and $_.Name -ieq 'cuesor-engine.exe' }).Count) { throw 'The discovery controller is not running.' }
     foreach ($workerId in $runtime.worker_pids) {
         $worker = Get-Process -Id $workerId -ErrorAction SilentlyContinue
         if (!$worker -or $worker.Path -ne $state.backend) { throw "Reported worker $workerId is not live at the expected path." }
@@ -201,9 +201,9 @@ function Snapshot([string]$Label) {
     Record 'snapshot' @{prefix=$prefix; feature=$Feature}
 }
 function Start-Gui {
-    $oldDataDir = $env:TERMINAL_IME_DATA_DIR
+    $oldDataDir = $env:CUESOR_DATA_DIR
     try {
-        $env:TERMINAL_IME_DATA_DIR = $dataDir
+        $env:CUESOR_DATA_DIR = $dataDir
         Record 'action' @{method='launch'; executable=$state.executable; data_directory=$dataDir}
         # This is the interactive UI under test; background subprocesses are hidden by the app.
         $gui = Start-Process -FilePath $state.executable -PassThru -RedirectStandardError (Join-Path $evidence ('stderr-' + [guid]::NewGuid() + '.log'))
@@ -214,7 +214,7 @@ function Start-Gui {
         Wait-For { (Test-Path -LiteralPath (Join-Path $dataDir 'runtime.json')) -and (Read-Json (Join-Path $dataDir 'runtime.json')).controller_pid -eq $gui.Id } 'Discovery controller did not publish owned runtime status.'
         Wait-For { $null -ne (Get-Control '外观：深色') } 'Settings controls did not become usable.'
         Remember-Children
-    } finally { $env:TERMINAL_IME_DATA_DIR = $oldDataDir }
+    } finally { $env:CUESOR_DATA_DIR = $oldDataDir }
 }
 function Stop-Gui {
     Remember-Children
@@ -261,14 +261,14 @@ function Cleanup {
 function Set-Color([bool]$Chinese,[int]$Rgb,[switch]$Cancel) {
     Invoke-Control $(if ($Chinese) {'自定义中文输入光标颜色'} else {'自定义英文输入光标颜色'})
     $gui = Get-Gui
-    Wait-For { [TerminalImeVerify]::Dialog($gui.Id,$gui.MainWindowHandle) -ne [IntPtr]::Zero } 'Native color dialog did not open.'
-    $dialog = [TerminalImeVerify]::Dialog($gui.Id,$gui.MainWindowHandle)
+    Wait-For { [CuesorVerify]::Dialog($gui.Id,$gui.MainWindowHandle) -ne [IntPtr]::Zero } 'Native color dialog did not open.'
+    $dialog = [CuesorVerify]::Dialog($gui.Id,$gui.MainWindowHandle)
     $bgr = (($Rgb -band 255) -shl 16) -bor ($Rgb -band 65280) -bor ($Rgb -shr 16)
     Record 'action' @{method='native common color dialog'; rgb=('#{0:X6}' -f $Rgb); cancel=[bool]$Cancel}
-    $message = [TerminalImeVerify]::RegisterWindowMessageW('commdlg_SetRGBColor')
-    $null = [TerminalImeVerify]::PostMessageW($dialog,$message,[UIntPtr]::Zero,[IntPtr]$bgr)
-    $null = [TerminalImeVerify]::PostMessageW($dialog,0x111,[UIntPtr]$(if ($Cancel) {2} else {1}),[IntPtr]::Zero)
-    Wait-For { [TerminalImeVerify]::Dialog($gui.Id,$gui.MainWindowHandle) -eq [IntPtr]::Zero } 'Native color dialog did not close.'
+    $message = [CuesorVerify]::RegisterWindowMessageW('commdlg_SetRGBColor')
+    $null = [CuesorVerify]::PostMessageW($dialog,$message,[UIntPtr]::Zero,[IntPtr]$bgr)
+    $null = [CuesorVerify]::PostMessageW($dialog,0x111,[UIntPtr]$(if ($Cancel) {2} else {1}),[IntPtr]::Zero)
+    Wait-For { [CuesorVerify]::Dialog($gui.Id,$gui.MainWindowHandle) -eq [IntPtr]::Zero } 'Native color dialog did not close.'
     if (!$Cancel) {
         $field = if ($Chinese) {'chinese_color'} else {'english_color'}
         Wait-For { (Read-Json (Join-Path $dataDir 'settings.json')).$field -eq ('#{0:X6}' -f $Rgb) } 'Color did not persist.'
@@ -277,12 +277,12 @@ function Set-Color([bool]$Chinese,[int]$Rgb,[switch]$Cancel) {
 try {
     if ($Action -eq 'Launch') {
         if (Test-Path -LiteralPath $runDir) { throw 'RunId already exists; keep its evidence and choose a new RunId.' }
-        $conflicts = @([TerminalImeVerify]::Processes() | Where-Object { $_.Name -iin @('TerminalIME.exe','terminal-ime.exe') })
+        $conflicts = @([CuesorVerify]::Processes() | Where-Object { $_.Name -iin @('Cuesor.exe','cuesor-engine.exe') })
         if ($conflicts.Count) { throw "Existing GUI/worker PIDs $($conflicts.Pid -join ', ') prevent isolated verification. Exit the daily app through its tray first." }
         $program = (Resolve-Path -LiteralPath $Executable).Path
-        if ([IO.Path]::GetFileName($program) -cne 'TerminalIME.exe') { throw 'Select the GUI entry TerminalIME.exe, not the backend terminal-ime.exe.' }
-        $backend = Join-Path ([IO.Path]::GetDirectoryName($program)) 'terminal-ime.exe'
-        if (!(Test-Path -LiteralPath $backend)) { throw 'The GUI requires terminal-ime.exe beside it.' }
+        if ([IO.Path]::GetFileName($program) -cne 'Cuesor.exe') { throw 'Select the GUI entry Cuesor.exe, not the backend cuesor-engine.exe.' }
+        $backend = Join-Path ([IO.Path]::GetDirectoryName($program)) 'cuesor-engine.exe'
+        if (!(Test-Path -LiteralPath $backend)) { throw 'The GUI requires cuesor-engine.exe beside it.' }
         New-Item -ItemType Directory -Path $dataDir,$evidence | Out-Null
         $state = [pscustomobject]@{run_id=$RunId; executable=$program; backend=$backend; gui_sha256=(Get-FileHash -LiteralPath $program).Hash; backend_sha256=(Get-FileHash -LiteralPath $backend).Hash; source_head=(& git -C $repo rev-parse HEAD); backend_version=(& $backend --version); gui=$null; children=@(); cleaned=$false}
         Save-State
@@ -367,10 +367,10 @@ try {
                     'Tray' {
                         $gui = Get-Gui
                         Record 'action' @{method='settings close WM_CLOSE'; gui_pid=$gui.Id}
-                        $null = [TerminalImeVerify]::PostMessageW($gui.MainWindowHandle,0x10,[UIntPtr]::Zero,[IntPtr]::Zero)
-                        Wait-For { ![TerminalImeVerify]::IsWindowVisible($gui.MainWindowHandle) } 'Close did not hide settings.'
+                        $null = [CuesorVerify]::PostMessageW($gui.MainWindowHandle,0x10,[UIntPtr]::Zero,[IntPtr]::Zero)
+                        Wait-For { ![CuesorVerify]::IsWindowVisible($gui.MainWindowHandle) } 'Close did not hide settings.'
                         if ($gui.HasExited) { throw 'Closing settings stopped the GUI.' }
-                        $controllerAlive = @([TerminalImeVerify]::Processes() | Where-Object {$_.Parent -eq $gui.Id -and $_.Name -ieq 'terminal-ime.exe'}).Count -gt 0
+                        $controllerAlive = @([CuesorVerify]::Processes() | Where-Object {$_.Parent -eq $gui.Id -and $_.Name -ieq 'cuesor-engine.exe'}).Count -gt 0
                         if (!$controllerAlive) { throw 'Closing settings stopped the controller.' }
                         Record 'hidden' @{gui_pid=$gui.Id; process_alive=$true; controller_alive=$true}
                         Record 'action' @{method='second executable launch'; executable=$state.executable}
@@ -378,7 +378,7 @@ try {
                         $state.children = @($state.children) + @(Identity $second $state.executable)
                         Save-State
                         if (!$second.WaitForExit(5000) -or $second.ExitCode -ne 0) { throw 'Second GUI did not exit successfully.' }
-                        Wait-For { [TerminalImeVerify]::IsWindowVisible($gui.MainWindowHandle) } 'Second launch did not restore the original settings window.'
+                        Wait-For { [CuesorVerify]::IsWindowVisible($gui.MainWindowHandle) } 'Second launch did not restore the original settings window.'
                         $before = (Read-Json $settingsPath).enabled
                         Tray-Command 2
                         Wait-For { (Read-Json $settingsPath).enabled -ne $before } 'Tray pause/resume handler did not save.'

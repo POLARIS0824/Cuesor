@@ -1,42 +1,33 @@
-# Cursor indication and automatic sessions
+# Verify cursor indication and terminal sessions
 
-Terminal IME attaches Windows Terminal sessions automatically and changes their cursor color with the active Chinese or English input state. Pausing or leaving the terminal restores its theme cursor color.
+Cuesor discovers accessible Windows Terminal consoles and applies the selected Chinese or English cursor color. Use a dedicated Windows test session with Microsoft Pinyin and a US English keyboard. GUI and terminal privileges must match.
 
-## Sub-features
+## Attach existing and new sessions
 
-- `attach-existing` initializes sessions that were open before the desktop app.
-- `attach-new` initializes sessions opened after the desktop app.
-- `color-follow` applies the active scheme's Chinese and English colors while typing normally.
-- `color-focus` restores theme color when the terminal loses foreground focus or input state cannot be confirmed.
-- `color-panes` follows the window's active input mode across attached panes.
-- `color-pause` pauses and resumes through settings and the tray, including visible cursor effects.
-- `session-exit` removes a closed root shell's worker without stopping other sessions.
+Create a physical Windows Terminal test session before launching the app. Record `$nu.pid` and `$env.WT_SESSION` in Nushell. Launch a fresh `cursor-check` run using the [verification skill](../SKILL.md).
 
-## How to get to it (user POV)
+Capture runtime state with the existing helper.
 
-- Open a Nushell or PowerShell session inside Windows Terminal, then open Terminal IME.
-- Open another Windows Terminal tab or pane while Terminal IME is already running.
-- Type into an ordinary editable prompt, change the Microsoft Pinyin Chinese/English state, or select the US English keyboard.
-- Use `启用光标颜色指示` in settings or `暂停指示` or `恢复指示` in the tray menu.
+```nu
+pwsh -NoProfile -File tools/verify.ps1 -Action Snapshot -RunId cursor-check
+```
 
-## Driving it with tools/verify.ps1 and Windows Terminal
+Require the exact test shell PID in `runtime.json`, a live corresponding worker, and the visible settings session list. Record errors. Open a second Nu or PowerShell tab after launch and repeat those checks for its PID.
 
-Preconditions:
+An empty discovery result does not pass attachment. The JSON data override does not restrict discovery to the test terminals.
 
-- Use a newly created physical Windows Terminal test session on a dedicated interactive Windows desktop. Record its shell PID and `WT_SESSION`; keep unrelated terminal content out of captured evidence.
-- Microsoft Pinyin and US English keyboard are available. GUI and test Terminal have compatible privileges. Open one test shell before Launch, then Launch and Doctor with RunId `cursor-check` as described in the index.
+## Observe the real cursor
 
-- **Existing session.** In the fresh Nu test shell, record `$nu.pid` and `$env.WT_SESSION`. Run `pwsh -NoProfile -File tools/verify.ps1 -Action Snapshot -RunId cursor-check`. Require that shell PID in the captured runtime sessions, a live corresponding worker, and the settings session list. Record any runtime errors.
-- **New session.** Open a second Nu or PowerShell tab/pane after Launch. Record its PID, wait for initialization, then repeat Snapshot. Require the new session in runtime and the visible session count. An empty discovery result leaves this journey unverified.
-- **Real cursor.** Read the active Chinese/English colors from the snapshot. Focus the test prompt, select Chinese mode, type a harmless unexecuted string, then change to English and continue editing. Capture both actions and cursor states, and compare with the selected colors. Move focus to settings and observe theme restoration in the Terminal. Snapshot captures settings only; capture the fresh test Terminal separately.
-- **Panes and shell exit.** Switch focus between the two test panes, change input state, and observe shared window mode rather than independent pane preferences. Exit one root test shell. Repeat Snapshot and require its session/worker to disappear while the remaining shell stays attached.
-- **Settings pause.** Run `pwsh -NoProfile -File tools/verify.ps1 -Action Drive -RunId cursor-check -Feature Pause`. Its action log and settings snapshots prove UI toggle and restoration. Separately pause via `启用光标颜色指示` while watching the test Terminal, require theme color, then resume and require color following. Repeat through the real tray `暂停指示` or `恢复指示` entry. Record each entry point and result in `manual-observations.md`.
+Read the active colors from saved settings. Focus the test prompt, select Chinese mode, and type harmless unexecuted text. Switch to English and continue editing. Capture the actions and actual cursor colors in that test terminal.
 
-## Gotchas
+Move focus to settings and require the terminal's theme color to return. Compare attached panes with the window's active input mode. Cuesor does not keep independent language preferences for each pane.
 
-- `Pause` does not drive or capture a physical Terminal cursor. Report visible color coverage separately from its automated verdict.
-- GUI Snapshot does not include other windows. Settings previews, ready workers, and `runtime.json.sessions` are supporting evidence, not visible color proof.
-- Automatic discovery can attach every accessible Windows Terminal console for this user. A scratch JSON directory does not limit that discovery.
-- The product shares the active input mode within one Windows Terminal window. Independent per-pane language preference is outside this behavior.
-- Programs that actively set cursor color may overwrite the indication. Keep that separate from ordinary prompt verification.
-- An elevated Terminal with an ordinary GUI must be diagnosed through the permissions feature; a missing session must not be relabeled a passing color check.
+Exit one root test shell. Require its session and worker to disappear while the other test shell remains attached. Keep unrelated terminal contents out of captures.
+
+## Pause and resume
+
+Use `启用光标颜色指示` while watching the test terminal. Require theme color when paused and indication after resume. Repeat through the real tray `暂停指示` and `恢复指示` entries. Record each route separately.
+
+The automated `Pause` journey checks the setting and restoration only. It does not capture a terminal cursor. A ready worker, settings preview, or GUI snapshot also does not prove visible colors.
+
+If a program actively overwrites cursor color, record that case separately. Diagnose elevated terminals through the [permissions guide](permissions-startup-diagnostics.md). Missing preconditions leave the affected route unverified. Exit owned test shells and clean up the app run after observations.

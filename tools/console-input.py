@@ -1,6 +1,6 @@
 """Benchmark-only: queue a fixed command in a newly created test Nu console.
 
-Not used by terminal-ime. Never point this at a normal user session.
+Not used by cuesor. Never point this at a normal user session.
 """
 import argparse
 import ctypes as C

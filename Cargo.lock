@@ -6184,7 +6184,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal-ime"
+name = "cuesor"
 version = "0.2.0"
 dependencies = [
  "serde",
@@ -6193,14 +6193,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal-ime-desktop"
+name = "cuesor-desktop"
 version = "0.2.0"
 dependencies = [
  "embed-resource",
  "gpui-kit",
  "raw-window-handle",
  "serde_json",
- "terminal-ime",
+ "cuesor",
  "windows 0.58.0",
 ]
 

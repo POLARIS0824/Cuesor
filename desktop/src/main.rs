@@ -5,6 +5,11 @@ mod radix_theme;
 mod ui;
 
 extern crate gpui_kit as gpui;
+use cuesor::{
+    agent::{self, RuntimeStatus},
+    platform::{AppResult, OwnedHandle},
+    settings::{self, Appearance, Settings, WindowSize},
+};
 use gpui::{prelude::*, *};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{
@@ -13,11 +18,6 @@ use std::{
     rc::Rc,
     sync::mpsc::Receiver,
     time::{Duration, Instant},
-};
-use terminal_ime::{
-    agent::{self, RuntimeStatus},
-    platform::{AppResult, OwnedHandle},
-    settings::{self, Appearance, Settings, WindowSize},
 };
 use windows::Win32::{
     Foundation::HWND,
@@ -321,7 +321,7 @@ fn run() -> AppResult<()> {
                         px(WindowSize::MIN.height as f32),
                     )),
                     titlebar: Some(TitlebarOptions {
-                        title: Some("Terminal IME 设置".into()),
+                        title: Some("Cuesor 设置".into()),
                         ..Default::default()
                     }),
                     show: !background,

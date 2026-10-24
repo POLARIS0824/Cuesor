@@ -1,9 +1,9 @@
 # Isolated, temporary Windows Terminal validation. Does not load/edit user config.
 const root = path self ..
-let tool = ($root | path join target release terminal-ime.exe)
+let tool = ($root | path join target release cuesor-engine.exe)
 let artifacts = ($root | path join artifacts)
 mkdir $artifacts
-print 'Terminal IME native-color probe (temporary session)'
+print 'Cuesor native-color probe (temporary session)'
 print 'This test continuously changes the cursor: Chinese=orange, English=blue.'
 print 'Only window/IME metadata is recorded; typed text is not recorded.'
 input 'Press Enter when ready; then switch Chinese/English several times for 20 seconds: '

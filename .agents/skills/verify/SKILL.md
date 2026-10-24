@@ -1,98 +1,72 @@
 ---
 name: verify
-description: Drive Terminal IME's Windows desktop settings and tray, capture UI and persisted-state evidence, and verify its Windows Terminal integration. Use after changing user-facing behavior or when reproducing a desktop, cursor, or diagnostic journey.
+description: Drive Cuesor settings and tray on Windows, inspect saved state, and verify Windows Terminal cursor indication. Use after changing desktop behavior or reproducing a connection or diagnostic issue.
 ---
 
-# Verify Terminal IME
+# Verify Cuesor
 
-Read [features/README.md](features/README.md), then the feature being changed. This Rust workspace's primary surface is `TerminalIME.exe`, a GPUI Kit settings window and native tray. `terminal-ime.exe` is its required sibling backend and a separate diagnostic/legacy CLI surface. There is no HTTP port, database, seed account, or authentication.
+Cuesor has a GPUI Kit settings window and a native tray. Keep `Cuesor.exe` beside its required backend, `cuesor-engine.exe`. Read the [feature index](features/README.md) and the relevant journey before testing.
 
-## Launch
+## Prepare an isolated run
 
-Run from the repository root in an interactive Windows desktop. Commands below are Nushell commands calling the existing PowerShell 7 Windows harness. Ensure `pwsh`, `cargo`, `rustc`, and the GNU or MSVC build prerequisites described in the repository README are available.
+Use an interactive Windows desktop with PowerShell 7 and the build prerequisites in the project README. Run these commands from the repository root in Nushell.
 
 ```nu
 pwsh -NoProfile -File tools/build-desktop.ps1
 pwsh -NoProfile -File tools/verify.ps1 -Action Launch -RunId appearance-check
 ```
 
-`Launch` defaults to `target/release/TerminalIME.exe`. It creates an empty `artifacts/verify/appearance-check/data/`, sets `TERMINAL_IME_DATA_DIR` only for the child process, and lets the real application create default settings and start its controller. Ready requires an owned visible settings window, expected UI Automation controls, six persisted schemes, matching runtime ownership, and a live controller. It emits a doctor report and baseline screenshot/UIA/settings/runtime evidence.
+Choose a new RunId for each run. `Launch` defaults to `target/release/Cuesor.exe`. To verify a portable package, pass `-Executable ./artifacts/Cuesor-portable/Cuesor.exe`.
 
-Use a fresh RunId for every run; existing runs are retained. If deliberately verifying an existing portable package, select it explicitly:
+`Launch` gives the child process an isolated `CUESOR_DATA_DIR`, waits for its visible settings controls and controller, and records a baseline screenshot and state. Binary hashes identify what ran. The checkout HEAD identifies the source tree, so retain a successful build log separately when claiming a source build.
 
-```nu
-pwsh -NoProfile -File tools/verify.ps1 -Action Launch -RunId portable-check -Executable ./artifacts/TerminalIME-portable/TerminalIME.exe
-```
+Exit every daily instance, including an older release, through its own tray before launching. Never kill a daily instance to make verification pass. The JSON override does not isolate Windows singletons, the login-startup registry value, or terminal discovery. Run one verifier at a time. Workers can attach to any accessible Windows Terminal console for the current user.
 
-The harness records both binary hashes, backend version, and checkout HEAD. HEAD identifies the checkout; hashes identify what actually ran. A prebuilt executable does not establish that current source built successfully. The driver does not build binaries itself.
+## Check the owned instance
 
-**Isolation:** `TERMINAL_IME_DATA_DIR` isolates JSON files only. The desktop singleton is scoped by Windows user and integrity level, independently of that directory. The controller also discovers all accessible Windows Terminal consoles. Run one verifier at a time and allow for temporary cursor changes in those terminals. Launch refuses any existing `TerminalIME.exe` or `terminal-ime.exe`; use the daily app's tray Exit before trying again. Never kill an existing instance to make a test pass. Registry login startup and UAC remain real Windows effects and are outside the automated journeys.
-
-Teardown, including after a failed command:
-
-```nu
-pwsh -NoProfile -File tools/verify.ps1 -Action Cleanup -RunId appearance-check
-```
-
-## Doctor
+Run Doctor before interaction and whenever the window or process state is uncertain.
 
 ```nu
 pwsh -NoProfile -File tools/verify.ps1 -Action Doctor -RunId appearance-check
 ```
 
-This read-only command verifies the recorded GUI PID, start time and executable path; both executable hashes; owned tray HWND; visible expected UIA controls; six schemes; matching `runtime.json.controller_pid`; live controller and reported workers. It reports sessions, permission blocks, and errors. It writes no evidence and changes no settings. Run it first whenever the instance looks wrong. A hidden window is not ready for settings interaction; use the mapped tray journey or clean up.
+Doctor checks executable hashes, GUI identity, visible controls, tray ownership, saved schemes, the controller, and reported workers. It does not change settings. Zero sessions can be valid for a settings test. Proving attachment requires the exact test shell PID and a ready worker. Proving cursor color requires observing the physical terminal.
 
-Zero sessions can be healthy for a settings-only test. Automatic attachment needs the exact test shell PID in runtime, a ready worker, and empty errors. Visible cursor behavior also needs actual terminal observation; Doctor explicitly does not prove that.
+## Run a journey
 
-## Drive
-
-The deterministic helper reuses the repo's UI Automation and screenshot approach, rather than coordinates. Each command records its action before invoking a production UI control and captures the resulting UI plus saved JSON. Run one mapped journey per run so `verdict.json` represents one feature.
+Run one mapped feature per RunId so the verdict has one scope.
 
 ```nu
 pwsh -NoProfile -File tools/verify.ps1 -Action Drive -RunId appearance-check -Feature Appearance
 ```
 
-Supported journeys:
+Choose the feature that matches the change.
 
-| Feature | Actual entry points and assertions |
-| --- | --- |
-| `Appearance` | UIA `外观：浅色`, `外观：深色`, `外观：系统`; selected controls, saved values, light/dark screenshots, and dark selection restored after a real exit/restart. |
-| `Colors` | All six `配色N：名称` controls; both custom-color buttons; native color-dialog confirmation/cancel; independent persistence across restart; reset affects only the active scheme. |
-| `Pause` | UIA `启用光标颜色指示`; saved toggle and restoration, with screenshots. Cursor restoration is a separate terminal journey. |
-| `Tray` | Settings WM_CLOSE, second executable launch, and owned tray WM_COMMAND pause/resume handler. Proves hide/reopen and handler behavior; Explorer tray icon gestures need separate evidence. |
+- `Appearance` selects light, dark, and system appearance, then checks persistence after restart.
+- `Colors` edits both colors in all six schemes, cancels a picker, resets the active scheme, and checks restart persistence.
+- `Pause` toggles the setting and restores its previous value.
+- `Tray` checks close-to-hide, second-launch restore, and native pause and resume handlers.
 
-For `Colors`, `Pause`, or `Tray`, start a fresh run with another RunId, then use that ID in the Drive/Cleanup commands. Read its feature map for additional entry points and preconditions. Window resizing, full keyboard traversal, Explorer gestures, actual cursor colors, UAC, and login startup have recipes in the feature maps; the four automated journeys do not cover them by implication.
+Use the feature guides for keyboard traversal, geometry, actual Explorer gestures, terminal colors, UAC, and login. The four automated journeys do not prove those routes.
 
-Capture additional observations of an owned visible instance with:
+Capture another observation of the owned visible window when needed.
 
 ```nu
 pwsh -NoProfile -File tools/verify.ps1 -Action Snapshot -RunId appearance-check
 ```
 
-## Evidence
+## Inspect evidence and clean up
 
-Proof survives in `artifacts/verify/<RunId>/evidence/` (Git-ignored):
+Read `artifacts/verify/<RunId>/evidence/actions.jsonl` alongside the PNG, UI Automation, settings, runtime, and window snapshots. Inspect images yourself. A successful verdict or ready worker does not prove rendered terminal colors.
 
-- `actions.jsonl`: timestamped actions, doctor observations, snapshots, errors, and verdicts.
-- Timestamped `.png`, `.uia.json`, `.settings.json`, `.runtime.json`, and optional `.window.json`: owned window screenshots, accessible control names/selection, and independently read saved state.
-- `verdict.json`: feature, tested entry point, executable hashes, checkout HEAD, pass result, and explicit coverage limits. It is written only after a successful Drive.
-- `final-data/` and `cleanup.json`: retained final JSON/log files, owned-process teardown result, forced PID list, and surviving evidence inventory.
-- `stderr-*.log`: GUI startup stderr. Ownership metadata lives in the sibling `state.json`.
+Record manual actions in `manual-observations.md` with the entry point, time, observed result, and remaining limits. Missing input methods, terminals, privileges, or desktop access leave the affected route unverified. Keep failed captures and reports.
 
-Exercise the real user path. Record the action and result together, and verify persistence/other side effects independently. UI setters, unit tests, and an isolated successful entry point do not prove other mapped routes. Use mocks only across an existing production boundary. These journeys have no mock, test-only endpoint, dry-run, or network stub: they start the real app, controller, and workers. They avoid login-startup and elevation controls; when testing those manually, observe and restore actual Windows state. Verify a new dry-run's files/network/process effects before trusting its name.
+Always finish with Cleanup, including after a failed attempt.
 
-Inspect screenshots yourself and correlate them with UIA and JSON. A JSON `passed` alone is insufficient evidence of rendering or terminal cursor color. Report unmet terminal/IME/elevation preconditions as failed or unverified, with the attempt and reason; keep the intended journey intact.
+```nu
+pwsh -NoProfile -File tools/verify.ps1 -Action Cleanup -RunId appearance-check
+```
 
-The feature index retains the historical settings-save access-denied failure and its current-source closure evidence. Treat it as failed persistence and retain the failure capture and temporary JSON; a passing portable run does not establish that every current-source journey passes.
+Cleanup targets only processes whose recorded PID, creation time, and executable still match. It archives scratch data and preserves evidence. Check `cleanup.json` for `owned_processes_stopped`, `data_removed`, and `evidence_preserved`. Normal-exit proof also requires an empty `forced_pids` list.
 
-## Cleanup
-
-Use the exact Cleanup command above. It sends Exit to the tray HWND only after verifying the owning PID, waits for recorded GUI/controller/workers, and uses force only for recorded processes whose PID, creation time and path still match. It archives scratch data before deleting only this run's `data/`. It preserves screenshots, logs, verdicts, ownership metadata, and cleanup report. Launch/Drive failures attempt this cleanup automatically; inspect cleanup errors and rerun it if needed. Doctor failures leave the instance available for diagnosis.
-
-After cleanup, inspect `cleanup.json`: require `owned_processes_stopped`, `data_removed`, and `evidence_preserved` to be true. Normal-exit coverage additionally requires an empty `forced_pids`; forced cleanup is not proof of normal exit. Confirm the captured PNGs, actions, and successful feature verdict still exist. Never delete `evidence/` as part of teardown.
-
-## Helpers
-
-`tools/verify.ps1` is executable through `pwsh -NoProfile -File`; Launch, Doctor, Drive, Snapshot, and Cleanup invocations are shown above. It uses the existing `tools/capture-window.ps1`. The wider existing `tools/desktop-check.ps1 -KeepArtifacts` covers resize/keyboard and more settings assertions in a separate run; see the map for its shared-session and artifact-retention caveats. `tools/check-terminal-access.ps1` reads the daily data directory and is not a doctor for these isolated runs.
-
-Keep the maintained feature map aligned with new user entry points using `/maintain-verification-skill`.
+The driver attempts cleanup after Launch or Drive failures. Doctor leaves the instance available for diagnosis. Retain `verdict.json`, `cleanup.json`, screenshots, logs, and archived `final-data/`. Do not delete the evidence directory during teardown.
