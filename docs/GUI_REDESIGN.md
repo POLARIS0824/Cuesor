@@ -9,14 +9,14 @@
 | 界面职责 | 实际使用 |
 | --- | --- |
 | 普通操作、自定义颜色、恢复默认 | Kit `Button`，包含禁用、悬停、按下和键盘焦点状态 |
-| 即时生效设置 | Kit `Switch`，带可访问名称 |
+| 即时生效设置 | Kit Base `Switch`，带可访问名称、键盘操作和 0.5 逻辑像素轨道边框 |
 | 外观选择 | Kit `ButtonGroup`，持续显示当前选项 |
 | 内容滚动 | Kit `Scrollable`，滚动条位于内容区域外缘 |
-| 颜色、字体、圆角 | Kit `Theme` 和 `ActiveTheme` 的语义令牌 |
+| 颜色、字体、圆角 | Kit `Theme` 注册的 Radix 浅色、深色主题 |
 | 图标 | Kit 自带的 Lucide 图标资源 |
 | 窗口与焦点层 | Kit `application`、`init`、`open_window` 和 `Root` |
 
-布局沿用 GPUI 的 rem 间距与字号辅助方法。仅平台窗口大小使用逻辑像素；色板与预览里的 RGB 值属于实际光标颜色数据。预览背景、文本、分隔线、错误和权限状态均读取主题色。保留系统窗口标题栏、原生颜色选择器和原生 UAC 重启流程。
+布局沿用 GPUI 的 rem 间距与 12／14／20 px 字号。应用绘制的边框采用 0.5 逻辑像素；色板与预览里的 RGB 值属于实际光标颜色数据。预览背景、文本、分隔线、错误和权限状态均读取 Radix 主题色。保留系统窗口标题栏、原生颜色选择器和原生 UAC 重启流程。
 
 默认窗口为 880 × 600 逻辑像素，最小为 760 × 520。通过收紧间距、压缩预览和连接信息，减少默认高度。窗口缩小时保留顶部开关、配色操作和固定底栏，内容区域按需滚动。Tab／Shift+Tab 移动焦点，Space／Enter 激活库控件。
 
@@ -34,16 +34,28 @@
 
 | 名称 | 中文光标 | 英文光标 | 色板参考 |
 | --- | --- | --- | --- |
-| 经典 | `#FF7800` | `#0077FF` | 原有橙蓝配色 |
+| 经典 | `#F76B15` | `#0090FF` | Radix Orange / Blue |
 | 珊瑚 | `#E54D2E` | `#12A594` | Radix Tomato / Teal |
 | 暮紫 | `#6E56CF` | `#FFC53D` | Radix Violet / Amber |
-| 极光 | `#D08770` | `#88C0D0` | Nord Aurora / Frost |
-| 柔粉 | `#F38BA8` | `#94E2D5` | Catppuccin Mocha Red / Teal |
+| 极光 | `#30A46C` | `#00A2C7` | Radix Green / Cyan |
+| 柔粉 | `#D6409F` | `#86EAD4` | Radix Pink / Mint |
 | 暖砂 | `#A18072` | `#3E63DD` | Radix Bronze / Indigo |
 
-颜色取自 [Radix Colors 官方色板](https://www.radix-ui.com/colors)、[Nord 官方色板](https://www.nordtheme.com/docs/colors-and-palettes/) 和 [Catppuccin 官方色板](https://catppuccin.com/palette/)。两两组合由本项目选择，目的是区分两种输入状态；极光和柔粉较适合深色终端。它们不会随应用明暗主题改变，用户可按自己的终端背景调整。
+默认光标颜色取自 [Radix Colors 官方色板](https://www.radix-ui.com/colors)。两两组合由本项目选择，目的是区分两种输入状态。它们不会随应用明暗主题改变，用户可按自己的终端背景调整。已有设置中的自定义颜色保持原值；重置当前组时才采用新的默认配色。
 
-## 本轮验证
+## 2026-10-24 UI 审查修复验证
+
+本次统一 Radix 明暗主题、六组出厂配色和应用图标。应用边框为 0.5 逻辑像素，开关使用无动画的 Kit Base 控件。删除重复说明、固定输入法名称和中点分隔符；重置位于配色区，管理员重启仅在权限受阻时出现。已有自定义颜色保持原值。
+
+修复了两项验证中发现的问题。共享读取时，原文件替换返回 `0x80070005`；现在回退到带备份的 `ReplaceFileW`，旧读取句柄仍可读完旧内容。选中按钮原先覆盖键盘焦点边框，现在在焦点可见状态设置边框颜色。
+
+当前源码 release 构建、格式检查、Clippy 和 13 项后端测试通过。新增回归从设置保存和加载入口验证共享读取期间的新旧快照及临时文件清理。
+
+`tools/verify.ps1` 的 Appearance、Colors、Pause、Tray 四条流程通过，覆盖主题切换、十二个自定义颜色、取消、重置、持久化、重启及托盘处理入口。分别保存在 `artifacts/verify/ui-after-appearance-01/`、`ui-after-colors-01/`、`ui-after-pause-01/` 和 `ui-after-tray-02/`。焦点前后截图和像素检查保存在 `ui-focus-before-01/` 与 `ui-focus-after-01/`。两个真实托盘菜单截图已核对“暂停指示”和“恢复指示”，切换动作通过已记录的托盘消息处理入口验证。
+
+`tools/desktop-check.ps1 -KeepArtifacts` 通过最小窗口、对齐、键盘、尺寸保存、最大化与最小化、重启恢复和进程退出检查，原始截图保存在 `artifacts/desktop-check-a98b85bf-68de-4662-a122-e2762b8c32a7/`。本次桌面为 200% 缩放，没有 Windows Terminal 会话。实际终端光标、Explorer 托盘手势、UAC 和登录启动没有验证。原生菜单 UIA 未取得可调用项，键盘选择因前台归属检查未满足而未执行；不能由消息入口通过推定这些入口通过。先前失败记录保留。
+
+## 2026-10-22 重设计验证记录
 
 工具链为 Rust 1.99.1 Windows GNU。以下自动检查已通过：
 

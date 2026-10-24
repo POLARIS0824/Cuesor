@@ -2,9 +2,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use windows::core::{HRESULT, PCWSTR};
-use windows::Win32::Foundation::ERROR_NOT_SAME_DEVICE;
+use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_NOT_SAME_DEVICE};
 use windows::Win32::Storage::FileSystem::{
-    MoveFileExW, MOVEFILE_COPY_ALLOWED, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    MoveFileExW, ReplaceFileW, MOVEFILE_COPY_ALLOWED, MOVEFILE_REPLACE_EXISTING,
+    MOVEFILE_WRITE_THROUGH, REPLACE_FILE_FLAGS,
 };
 
 use crate::{
@@ -29,15 +30,13 @@ pub struct ColorScheme {
     pub english_color: String,
 }
 
-// Cursor data selected from Radix Colors, Nord and Catppuccin. Attribution and
-// the application-owned pairings are documented in docs/GUI_REDESIGN.md.
 pub fn default_schemes() -> [ColorScheme; 6] {
     [
-        ("#FF7800", "#0077FF"),
+        ("#F76B15", "#0090FF"),
         ("#E54D2E", "#12A594"),
         ("#6E56CF", "#FFC53D"),
-        ("#D08770", "#88C0D0"),
-        ("#F38BA8", "#94E2D5"),
+        ("#30A46C", "#00A2C7"),
+        ("#D6409F", "#86EAD4"),
         ("#A18072", "#3E63DD"),
     ]
     .map(|(chinese, english)| ColorScheme {
@@ -105,13 +104,14 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
+        let color_schemes = default_schemes();
         Self {
             enabled: true,
-            chinese_color: "#FF7800".into(),
-            english_color: "#0077FF".into(),
+            chinese_color: color_schemes[0].chinese_color.clone(),
+            english_color: color_schemes[0].english_color.clone(),
             auto_start: false,
             appearance: Appearance::System,
-            color_schemes: default_schemes(),
+            color_schemes,
             active_scheme: 0,
         }
     }
@@ -157,7 +157,6 @@ impl Settings {
                 let legacy = json.get("color_schemes").is_none();
                 let mut value: Self = serde_json::from_value(json)?;
                 if legacy {
-                    // Retain both existing cursor colors in the first editable slot.
                     value.active_scheme = 0;
                     value.color_schemes[0] = ColorScheme {
                         chinese_color: value.chinese_color.clone(),
@@ -215,6 +214,22 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> AppResult<()> {
         )
     };
     if let Err(error) = result {
+        if error.code() == HRESULT::from_win32(ERROR_ACCESS_DENIED.0) && path.exists() {
+            let backup = path.with_extension(format!("{}.bak", std::process::id()));
+            let backup_path = wide(backup.as_os_str());
+            unsafe {
+                ReplaceFileW(
+                    PCWSTR(to.as_ptr()),
+                    PCWSTR(from.as_ptr()),
+                    PCWSTR(backup_path.as_ptr()),
+                    REPLACE_FILE_FLAGS(0),
+                    None,
+                    None,
+                )?;
+            }
+            let _ = std::fs::remove_file(backup);
+            return Ok(());
+        }
         if error.code() != HRESULT::from_win32(ERROR_NOT_SAME_DEVICE.0) {
             return Err(error.into());
         }
@@ -235,6 +250,11 @@ pub fn write_json(path: &Path, value: &impl Serialize) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows::Win32::Storage::FileSystem::{
+        FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
 
     #[test]
     fn persists_settings_and_rejects_invalid_colors_without_overwriting() {
@@ -260,6 +280,47 @@ mod tests {
         assert_eq!(Settings::load(&dir).unwrap(), next);
         std::fs::remove_file(dir.join("settings.json")).unwrap();
         std::fs::remove_dir(dir).unwrap();
+    }
+
+    #[test]
+    fn saves_new_settings_while_a_reader_holds_the_previous_snapshot() {
+        let dir = std::env::temp_dir().join(format!(
+            "terminal-ime-open-reader-test-{}",
+            std::process::id()
+        ));
+        let original = Settings::default();
+        original.save(&dir).unwrap();
+        let path = dir.join("settings.json");
+        let mut reader = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0 | FILE_SHARE_DELETE.0)
+            .open(&path)
+            .unwrap();
+
+        let updated = Settings {
+            enabled: false,
+            appearance: Appearance::Dark,
+            ..original.clone()
+        };
+        updated.save(&dir).unwrap();
+
+        let mut previous_bytes = Vec::new();
+        reader.read_to_end(&mut previous_bytes).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Settings>(&previous_bytes).unwrap(),
+            original
+        );
+        assert_eq!(Settings::load(&dir).unwrap(), updated);
+        assert_eq!(
+            std::fs::read_dir(&dir)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect::<Vec<_>>(),
+            vec![std::ffi::OsString::from("settings.json")]
+        );
+
+        drop(reader);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

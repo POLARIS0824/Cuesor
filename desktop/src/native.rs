@@ -1,7 +1,11 @@
 use std::{
     mem::size_of,
     path::Path,
-    sync::{mpsc::Sender, OnceLock},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::Sender,
+        OnceLock,
+    },
 };
 
 use terminal_ime::{
@@ -42,7 +46,12 @@ pub enum TrayAction {
 }
 static TRAY_ACTIONS: OnceLock<Sender<TrayAction>> = OnceLock::new();
 static TASKBAR_CREATED: OnceLock<u32> = OnceLock::new();
+static INDICATOR_ENABLED: AtomicBool = AtomicBool::new(true);
 const TRAY_CALLBACK: u32 = WM_APP + 1;
+
+pub fn set_indicator_enabled(enabled: bool) {
+    INDICATOR_ENABLED.store(enabled, Ordering::Relaxed);
+}
 
 pub struct Instance {
     _mutex: OwnedHandle,
@@ -284,7 +293,7 @@ unsafe fn tray_loop(ready: &std::sync::mpsc::Sender<Result<usize, String>>) -> A
     for (slot, unit) in notification
         .szTip
         .iter_mut()
-        .zip("Terminal IME · 双击设置 / 右键菜单".encode_utf16())
+        .zip("Terminal IME 双击打开设置，右键打开菜单".encode_utf16())
     {
         *slot = unit;
     }
@@ -342,7 +351,12 @@ unsafe extern "system" fn tray_proc(
                 WM_RBUTTONUP | WM_CONTEXTMENU => {
                     if let Ok(menu) = CreatePopupMenu() {
                         let _ = AppendMenuW(menu, MF_STRING, 1, w!("打开设置"));
-                        let _ = AppendMenuW(menu, MF_STRING, 2, w!("暂停 / 恢复指示"));
+                        let action = if INDICATOR_ENABLED.load(Ordering::Relaxed) {
+                            w!("暂停指示")
+                        } else {
+                            w!("恢复指示")
+                        };
+                        let _ = AppendMenuW(menu, MF_STRING, 2, action);
                         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, None);
                         let _ = AppendMenuW(menu, MF_STRING, 3, w!("退出 Terminal IME"));
                         let mut point = POINT::default();
@@ -400,12 +414,12 @@ unsafe fn tray_icon() -> AppResult<HICON> {
                 || ((23..=25).contains(&y) && (8..=23).contains(&x))
             {
                 if y < 16 {
-                    0xFF7800
+                    0xF76B15
                 } else {
-                    0x3399FF
+                    0x0090FF
                 }
             } else {
-                0x192231
+                0x111113
             };
             let i = (y * 32 + x) * 4;
             pixels[i] = color as u8;

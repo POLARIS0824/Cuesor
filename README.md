@@ -1,6 +1,6 @@
 # Terminal IME
 
-面向 Windows Terminal 的 Rust 光标颜色指示器，提供 GPUI Kit 设置窗口、系统托盘和不依赖 shell 配置的自动接入。微软拼音中文状态默认使用橙色 `#FF7800`，英文状态和美式英文键盘默认使用蓝色 `#0077FF`；无法确认状态或窗口失去前台焦点时恢复终端主题颜色。
+面向 Windows Terminal 的 Rust 光标颜色指示器，提供 GPUI Kit 设置窗口、系统托盘和不依赖 shell 配置的自动接入。默认配色将中文输入显示为 Radix Orange `#F76B15`，英文输入显示为 Radix Blue `#0090FF`；无法确认状态或窗口失去前台焦点时恢复终端主题颜色。
 
 同一 Windows Terminal 窗口内，已接入的会话跟随当前正在输入的中／英状态；不保存各分屏独立的语言偏好。当前桌面版为 0.2.0，原有 CLI 诊断方式仍保留。
 
@@ -9,21 +9,21 @@
 构建后双击 `target/release/TerminalIME.exe`，或者使用 `artifacts/TerminalIME-portable/TerminalIME.exe`。同目录的 `terminal-ime.exe` 是后台组件，需要一起保留；日常使用打开大写名称的 GUI 入口。
 
 - 六个快捷按钮分别保存一组中文／英文配色，点击即可同时应用两种颜色。选择一组后，用上方两侧的“自定义颜色”分别编辑该组的中文和英文颜色，六组均可自定义并独立保存。
-- 窗口右上角可选择跟随系统、浅色或深色外观，选择会自动保存。按钮、开关、分组按钮、滚动条与图标使用 GPUI Kit 0.8.0；按 Tab／Shift+Tab 移动焦点，按 Space 或 Enter 操作控件。
+- 窗口右上角可选择跟随系统、浅色或深色外观，选择会自动保存。界面采用 Radix 浅色和深色色板；开关使用 GPUI Kit 的 Base 交互控件。按 Tab／Shift+Tab 移动焦点，按 Space 或 Enter 操作控件。
 - “启用光标颜色指示”控制暂停／恢复；“重置当前配色”只恢复当前组的推荐颜色，保留其他组的修改。
 - 默认窗口为 880 × 600 逻辑像素。手动调整的普通窗口尺寸会自动保存，下次启动时恢复；最大化和最小化不会覆盖它。
-- 关闭设置窗口会继续在托盘运行。托盘图标可能位于任务栏的“显示隐藏图标”区域；双击图标打开设置，右键可暂停／恢复或退出。
+- 关闭设置窗口会继续在托盘运行。托盘图标可能位于任务栏的“显示隐藏图标”区域；双击图标打开设置，右键菜单按当前状态显示“暂停指示”或“恢复指示”，也可退出。
 - 打开 Windows Terminal 后，后台会自动发现已有和新建的终端会话，数秒内接入。不需要再执行 Nu 命令或编辑 Nu、PowerShell 配置。
-- 若终端以管理员身份运行，普通权限的软件无法接入，设置会提示“检测到管理员终端，需要切换管理员模式”。点击“以管理员身份重新启动”，在 Windows 的 UAC 提示中选择“是”；也可使用下方“切换管理员模式”。程序默认使用普通权限。
+- 若终端以管理员身份运行，普通权限的软件无法接入，设置会显示“以管理员身份重新启动”。点击后在 Windows 的 UAC 提示中选择“是”。程序默认使用普通权限。
 - 登录启动默认关闭，可通过设置开启；登录时只驻留托盘，不弹出设置窗口。移动程序目录后应重新关闭／开启此选项以更新路径。
 
 六组配色、当前选择、启用状态、外观和登录启动偏好保存在 `%LOCALAPPDATA%/TerminalIME/settings.json`；窗口尺寸单独保存在同目录的 `window.json`。登录启动只操作当前用户 Run 项中的 `TerminalIME` 值。`runtime.json` 和有错误时的 `last-worker-error.json` 用于诊断，不记录终端输入正文。
 
-设置窗口按 [GPUI Kit Design Guides](https://gpui-kit.com/docs/design-guides/) 重新设计，使用语义主题色、平台字体、统一间距和控件尺寸；终端预览中的颜色块是用户选择的实际光标颜色。已有设置文件无需手动迁移，新增的 `appearance` 默认为 `system`。组件对应关系与本轮验证见 [界面重设计记录](docs/GUI_REDESIGN.md)。
+设置窗口按 [GPUI Kit Design Guides](https://gpui-kit.com/docs/design-guides/) 重新设计，并为浅色、深色外观注册 [Radix Colors](https://www.radix-ui.com/colors) 语义主题；终端预览中的颜色块是用户选择的实际光标颜色。已有设置文件无需手动迁移，新增的 `appearance` 默认为 `system`。组件对应关系与本轮验证见 [界面重设计记录](docs/GUI_REDESIGN.md)。
 
 遇到一直等待会话时，可用同目录的 `terminal-ime.exe diagnose REPORT.json` 导出发现结果；`elevated_terminal_pids` 列出当前权限无法接入的管理员终端。开发检查 `tools/check-terminal-access.ps1` 比较实际进程令牌与界面运行记录，避免将权限问题显示成没有终端。
 
-若设置目录将文件移动报告为跨卷，保存会回退到 Windows 允许复制的移动模式。`tools/check-settings-storage.ps1` 使用独立测试文件验证真实设置目录的新建与覆盖，不改动现有配色。
+若设置目录将文件移动报告为跨卷，保存会回退到 Windows 允许复制的移动模式。已有文件因共享读取而拒绝替换时，保存会使用带备份的 Windows 文件替换接口；替换完成后清理备份。`tools/check-settings-storage.ps1` 使用独立测试文件验证真实设置目录的新建与覆盖，不改动现有配色。
 
 桌面运行由 GUI、一个自动发现进程以及每个 console 的轻量 worker 组成。设置变化由 worker 重新加载，不需要重启 shell。应用退出时 worker 会尽力恢复主题色并退出；关闭某个根 shell 时其 worker 也会退出。旧 Nu 接入脚本调用的 CLI worker 会在桌面版运行时让出控制权，避免争抢颜色。
 

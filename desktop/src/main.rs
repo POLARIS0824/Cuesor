@@ -1,11 +1,11 @@
 #![windows_subsystem = "windows"]
 
 mod native;
+mod radix_theme;
 mod ui;
 
 extern crate gpui_kit as gpui;
 use gpui::{prelude::*, *};
-use gpui_kit::component::Theme;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::{
     cell::RefCell,
@@ -62,7 +62,7 @@ impl SettingsView {
         });
         cx.observe_window_appearance(window, |view, window, cx| {
             if view.options.appearance == Appearance::System {
-                Theme::sync_system_appearance(Some(window), cx);
+                view.apply_appearance(window, cx);
             }
         })
         .detach();
@@ -83,7 +83,6 @@ impl SettingsView {
         })
         .detach();
         cx.on_app_quit(|view, _| {
-            // Flush even if the app exits immediately after the final resize.
             let _ = view.window_size.save(&view.directory);
             async {}
         })
@@ -219,6 +218,7 @@ impl SettingsView {
         match result {
             Ok(()) => {
                 self.options = next;
+                native::set_indicator_enabled(self.options.enabled);
                 self.notice = "设置已保存".into();
                 self.notice_is_error = false;
             }
@@ -281,6 +281,7 @@ fn run() -> AppResult<()> {
     let directory = settings::data_directory()?;
     let options = Settings::load(&directory)?;
     options.save(&directory)?;
+    native::set_indicator_enabled(options.enabled);
     let background = std::env::args().any(|arg| arg == "--background");
     let (sender, receiver) = std::sync::mpsc::channel();
     let _tray = native::Tray::start(sender)?;
@@ -291,6 +292,7 @@ fn run() -> AppResult<()> {
         .with_assets(ui::AppAssets)
         .run(move |cx: &mut App| {
             gpui_kit::init(cx);
+            radix_theme::install(cx);
             let stored_size = WindowSize::load(&directory);
             let restored_size = cx
                 .primary_display()
@@ -319,7 +321,7 @@ fn run() -> AppResult<()> {
                         px(WindowSize::MIN.height as f32),
                     )),
                     titlebar: Some(TitlebarOptions {
-                        title: Some("Terminal IME · 设置".into()),
+                        title: Some("Terminal IME 设置".into()),
                         ..Default::default()
                     }),
                     show: !background,
