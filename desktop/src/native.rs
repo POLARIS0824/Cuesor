@@ -10,7 +10,7 @@ use std::{
 
 use cuesor::{
     platform::{wide, AppResult, OwnedHandle},
-    session,
+    process,
 };
 use windows::{
     core::{w, PCWSTR},
@@ -19,13 +19,12 @@ use windows::{
             GetLastError, COLORREF, ERROR_ALREADY_EXISTS, HWND, LPARAM, LRESULT, POINT, WPARAM,
         },
         Graphics::Gdi::HBRUSH,
-        Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY},
         System::{
             LibraryLoader::GetModuleHandleW,
             Registry::*,
             Threading::{
-                CreateEventW, CreateMutexW, GetCurrentProcess, OpenEventW, OpenProcessToken,
-                SetEvent, WaitForSingleObject, EVENT_MODIFY_STATE,
+                CreateEventW, CreateMutexW, OpenEventW, SetEvent, WaitForSingleObject,
+                EVENT_MODIFY_STATE,
             },
         },
         UI::{
@@ -60,7 +59,7 @@ pub struct Instance {
 
 impl Instance {
     pub fn acquire() -> AppResult<Option<Self>> {
-        let scope = session::desktop_scope()?;
+        let scope = process::desktop_scope()?;
         let mutex_name = wide(&scope);
         let event_name = wide(format!("{scope}-show"));
         let mutex = OwnedHandle(unsafe { CreateMutexW(None, false, PCWSTR(mutex_name.as_ptr()))? });
@@ -165,27 +164,6 @@ pub fn error_message(message: &str) {
             w!("Cuesor"),
             MB_ICONERROR | MB_OK,
         );
-    }
-}
-
-pub fn is_elevated() -> bool {
-    unsafe {
-        let mut raw = windows::Win32::Foundation::HANDLE::default();
-        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut raw).is_err() {
-            return false;
-        }
-        let token = OwnedHandle(raw);
-        let mut value = TOKEN_ELEVATION::default();
-        let mut length = 0;
-        GetTokenInformation(
-            token.0,
-            TokenElevation,
-            Some((&mut value as *mut TOKEN_ELEVATION).cast()),
-            size_of::<TOKEN_ELEVATION>() as u32,
-            &mut length,
-        )
-        .is_ok()
-            && value.TokenIsElevated != 0
     }
 }
 
@@ -405,36 +383,14 @@ fn send(action: TrayAction) {
 }
 
 unsafe fn tray_icon() -> AppResult<HICON> {
-    let mask = [0u8; 128];
-    let mut pixels = [0u8; 32 * 32 * 4];
-    for y in 0..32 {
-        for x in 0..32 {
-            let color: u32 = if ((13..=18).contains(&x) && (7..=24).contains(&y))
-                || ((6..=8).contains(&y) && (8..=23).contains(&x))
-                || ((23..=25).contains(&y) && (8..=23).contains(&x))
-            {
-                if y < 16 {
-                    0xF76B15
-                } else {
-                    0x0090FF
-                }
-            } else {
-                0x111113
-            };
-            let i = (y * 32 + x) * 4;
-            pixels[i] = color as u8;
-            pixels[i + 1] = (color >> 8) as u8;
-            pixels[i + 2] = (color >> 16) as u8;
-            pixels[i + 3] = 255;
-        }
-    }
-    Ok(CreateIcon(
-        GetModuleHandleW(None)?,
+    let instance = GetModuleHandleW(None)?.into();
+    let icon = LoadImageW(
+        Some(&instance),
+        PCWSTR(std::ptr::without_provenance(1)),
+        IMAGE_ICON,
         32,
         32,
-        1,
-        32,
-        mask.as_ptr(),
-        pixels.as_ptr(),
-    )?)
+        IMAGE_FLAGS::default(),
+    )?;
+    Ok(HICON(icon.0))
 }

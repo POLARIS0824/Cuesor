@@ -152,41 +152,34 @@ fn query(hwnd: HWND, command: usize) -> Option<usize> {
 
 pub struct Sample {
     pub focus: Option<Focus>,
-    pub ime_hwnd: HWND,
-    pub open: Option<usize>,
-    pub conversion: Option<usize>,
     pub mode: ImeMode,
-    pub stable: bool,
 }
 
-pub fn sample(host: Option<HWND>) -> Sample {
+pub fn sample(host: HWND) -> Sample {
     let mut result = Sample {
         focus: focus(),
-        ime_hwnd: HWND::default(),
-        open: None,
-        conversion: None,
         mode: ImeMode::Unknown,
-        stable: false,
     };
     let Some(before) = result.focus else {
         return result;
     };
-    if host.is_some_and(|h| h != before.foreground) || !is_terminal(before.foreground) {
+    if host != before.foreground || !is_terminal(before.foreground) {
         return result;
     }
     let language = (before.layout & 0xffff) as u16;
+    let mut open = None;
+    let mut conversion = None;
     if language == 0x0804 {
-        result.ime_hwnd = unsafe { ImmGetDefaultIMEWnd(before.focused) };
-        if !result.ime_hwnd.0.is_null() {
-            result.open = query(result.ime_hwnd, 5);
-            if result.open.is_some_and(|v| v != 0) {
-                result.conversion = query(result.ime_hwnd, 1);
+        let ime = unsafe { ImmGetDefaultIMEWnd(before.focused) };
+        if !ime.0.is_null() {
+            open = query(ime, 5);
+            if open.is_some_and(|v| v != 0) {
+                conversion = query(ime, 1);
             }
         }
     }
-    result.stable = focus() == Some(before);
-    if result.stable {
-        result.mode = classify(language, result.open, result.conversion);
+    if focus() == Some(before) {
+        result.mode = classify(language, open, conversion);
     }
     result
 }
@@ -197,15 +190,6 @@ pub fn attach(pid: u32) -> AppResult<()> {
         AttachConsole(pid)?;
     }
     Ok(())
-}
-
-pub fn output_mode() -> AppResult<u32> {
-    let handle = console_output()?;
-    let mut mode = CONSOLE_MODE::default();
-    unsafe {
-        GetConsoleMode(handle.0, &mut mode)?;
-    }
-    Ok(mode.0)
 }
 
 fn console_output() -> AppResult<OwnedHandle> {

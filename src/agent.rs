@@ -30,11 +30,11 @@ use windows::{
 use crate::{
     model::{ColorState, ImeMode},
     platform::{self, wide, AppResult, OwnedHandle},
-    session,
+    process,
     settings::{self, Settings},
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConsoleSession {
     pub shell_pid: u32,
     pub created: u64,
@@ -43,7 +43,7 @@ pub struct ConsoleSession {
     pub terminal: usize,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RuntimeStatus {
     pub controller_pid: u32,
     pub sessions: Vec<ConsoleSession>,
@@ -173,8 +173,8 @@ fn discover_report() -> AppResult<DiscoveryReport> {
                 .into_iter()
                 .filter(|pid| processes.contains_key(pid))
                 .filter_map(|pid| {
-                    let process = session::shell_process(pid).ok()?;
-                    let created = session::created_at(process.0).ok()?;
+                    let process = process::shell_process(pid).ok()?;
+                    let created = process::created_at(process.0).ok()?;
                     Some((created, pid))
                 }),
             std::process::id(),
@@ -207,7 +207,7 @@ struct Worker {
 fn ready_name(console: usize, created: u64) -> AppResult<Vec<u16>> {
     Ok(wide(format!(
         "Local\\Cuesor-auto-{}-{console}-{created}-ready",
-        session::identity()?
+        process::identity()?
     )))
 }
 
@@ -224,7 +224,7 @@ fn is_ready(session: &ConsoleSession) -> bool {
 }
 
 pub fn start_controller(controller_pid: u32, data_dir: &Path) -> AppResult<OwnedHandle> {
-    let owner = session::shell_process(controller_pid)?;
+    let owner = process::shell_process(controller_pid)?;
     let executable = std::env::current_exe()?.with_file_name("cuesor-engine.exe");
     if !executable.is_file() {
         return Err("同目录缺少 cuesor-engine.exe，请使用完整构建目录".into());
@@ -233,10 +233,10 @@ pub fn start_controller(controller_pid: u32, data_dir: &Path) -> AppResult<Owned
         executable.into_os_string(),
         "_agent".into(),
         controller_pid.to_string().into(),
-        session::created_at(owner.0)?.to_string().into(),
+        process::created_at(owner.0)?.to_string().into(),
         data_dir.as_os_str().to_owned(),
     ];
-    session::spawn_hidden(&args)
+    process::spawn_hidden(&args)
 }
 
 fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
@@ -267,7 +267,7 @@ fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
                         discovered.created.to_string().into(),
                         discovered.console.to_string().into(),
                     ];
-                    match session::spawn_hidden(&args) {
+                    match process::spawn_hidden(&args) {
                         Ok(process) => workers.push(Worker {
                             session: discovered,
                             process,
@@ -313,8 +313,8 @@ fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
 }
 
 fn checked_process(pid: u32, created: u64) -> AppResult<OwnedHandle> {
-    let process = session::shell_process(pid)?;
-    if session::created_at(process.0)? != created {
+    let process = process::shell_process(pid)?;
+    if process::created_at(process.0)? != created {
         return Err("process identity changed".into());
     }
     Ok(process)
@@ -336,7 +336,7 @@ fn worker(
     let shell = checked_process(shell_pid, shell_created)?;
     let mutex_name = wide(format!(
         "Local\\Cuesor-auto-{}-{console}-{shell_created}",
-        session::identity()?
+        process::identity()?
     ));
     let mutex = OwnedHandle(unsafe { CreateMutexW(None, false, PCWSTR(mutex_name.as_ptr()))? });
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
@@ -351,8 +351,8 @@ fn worker(
     unsafe {
         SetConsoleCtrlHandler(Some(control), true)?;
     }
-    let Some(_console_lease) = session::console_lease()? else {
-        // The old CLI worker yields when it sees the desktop. Retry discovery next cycle.
+    let Some(_console_lease) = process::console_lease()? else {
+        // Retry discovery after the current console owner exits.
         return Ok(());
     };
     let mut options = Settings::load(directory)?;
@@ -375,7 +375,7 @@ fn worker(
             reload = Instant::now();
         }
         let host = platform::terminal_host();
-        let sample = platform::sample(Some(host));
+        let sample = platform::sample(host);
         let mode = if options.enabled {
             sample.mode
         } else {
@@ -414,11 +414,17 @@ fn worker(
 pub fn internal_command(args: Vec<String>) -> Option<AppResult<()>> {
     match args.first().map(String::as_str) {
         Some("discover") => Some((|| {
+            if args.len() != 2 {
+                return Err("discover requires exactly one JSON report path".into());
+            }
             let report = args.get(1).ok_or("discover requires a JSON report path")?;
             settings::write_json(Path::new(report), &discover()?)?;
             Ok(())
         })()),
         Some("diagnose") => Some((|| {
+            if args.len() != 2 {
+                return Err("diagnose requires exactly one JSON report path".into());
+            }
             let report = args.get(1).ok_or("diagnose requires a JSON report path")?;
             settings::write_json(Path::new(report), &discover_report()?)?;
             Ok(())

@@ -58,6 +58,10 @@ function Read-SharedText([string]$Path) {
     $reader = [IO.StreamReader]::new($stream)
     try { $reader.ReadToEnd() } finally { $reader.Dispose() }
 }
+function Read-ActiveColors([string]$Path) {
+    $settings = Read-SharedText $Path | ConvertFrom-Json
+    $settings.color_schemes[$settings.active_scheme]
+}
 function Get-SettingControl([string]$Name) {
     $root = [System.Windows.Automation.AutomationElement]::FromHandle($window)
     $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$Name)
@@ -85,32 +89,18 @@ function Set-CursorColor([bool]$Chinese,[int]$Rgb) {
     $null = [CuesorDesktopCheck]::PostMessageW($dialog,$message,[UIntPtr]::Zero,[IntPtr]$bgr)
     $null = [CuesorDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]1,[IntPtr]::Zero)
     $expected = '#{0:X6}' -f $Rgb
-    Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).$property -eq $expected } "Color did not save: $expected"
+    Wait-Condition { (Read-ActiveColors $settingsPath).$property -eq $expected } "Color did not save: $expected"
 }
 $oldDataDirectory = $env:CUESOR_DATA_DIR
-$oldSession = $env:WT_SESSION
 $env:CUESOR_DATA_DIR = $dataDir
 $backend = Join-Path ([IO.Path]::GetDirectoryName($program)) 'cuesor-engine.exe'
-$legacyTested = $false
-$existingSession = $null
 $gui = $null
 $tray = [IntPtr]::Zero
 $children = @()
 try {
-    & $backend discover (Join-Path $dataDir 'discovered-before-gui.json')
-    if ($LASTEXITCODE -ne 0) { throw 'Discovery probe failed.' }
-    $existingSession = Get-Content -LiteralPath (Join-Path $dataDir 'discovered-before-gui.json') -Raw | ConvertFrom-Json | Select-Object -First 1
-    if ($existingSession) {
-        $env:WT_SESSION = [guid]::NewGuid().ToString()
-        & $backend start --shell-pid $existingSession.shell_pid --log (Join-Path $dataDir 'legacy-worker.jsonl')
-        if ($LASTEXITCODE -ne 0) { throw 'Legacy worker did not start.' }
-        Wait-Condition { (& $backend status | ConvertFrom-Json).running } 'Legacy worker did not initialize.'
-        $legacyTested = $true
-    }
     $gui = Start-Process -FilePath $program -PassThru -RedirectStandardError (Join-Path $dataDir 'stderr.log')
     Wait-Condition { $gui.Refresh(); $gui.HasExited -or $gui.MainWindowHandle -ne 0 } 'Settings did not appear.'
     if ($gui.HasExited) { throw "Settings process exited: $($gui.ExitCode)." }
-    if ($legacyTested) { Wait-Condition { !(& $backend status | ConvertFrom-Json).running } 'Legacy worker did not yield to the desktop app.' }
     $window = $gui.MainWindowHandle
     $defaultBounds = [CuesorDesktopCheck+Rect]::new()
     $null = [CuesorDesktopCheck]::GetWindowRect($window,[ref]$defaultBounds)
@@ -134,20 +124,20 @@ try {
     $setRgbMessage = [CuesorDesktopCheck]::RegisterWindowMessageW('commdlg_SetRGBColor')
     $null = [CuesorDesktopCheck]::PostMessageW($dialog,$setRgbMessage,[UIntPtr]::Zero,[IntPtr]0xff0000)
     $null = [CuesorDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]1,[IntPtr]::Zero)
-    Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).chinese_color -eq '#0000FF' } 'Custom color was not saved.'
+    Wait-Condition { (Read-ActiveColors $settingsPath).chinese_color -eq '#0000FF' } 'Custom color was not saved.'
     Invoke-SettingControl '自定义中文输入光标颜色'
     Wait-Condition { [CuesorDesktopCheck]::FindDialog($gui.Id,$window) -ne [IntPtr]::Zero } 'Second color dialog did not open.'
     $dialog = [CuesorDesktopCheck]::FindDialog($gui.Id,$window)
     $null = [CuesorDesktopCheck]::PostMessageW($dialog,0x111,[UIntPtr]2,[IntPtr]::Zero)
     Wait-Condition { [CuesorDesktopCheck]::FindDialog($gui.Id,$window) -eq [IntPtr]::Zero } 'Color cancel did not close the dialog.'
-    if ((Read-SharedText $settingsPath | ConvertFrom-Json).chinese_color -ne '#0000FF') { throw 'Cancel changed the saved color.' }
+    if ((Read-ActiveColors $settingsPath).chinese_color -ne '#0000FF') { throw 'Cancel changed the saved color.' }
     $schemeNames = @('经典','珊瑚','暮紫','极光','柔粉','暖砂')
     $customColors = @()
     for ($index=0; $index -lt 6; $index++) {
         Invoke-SettingControl ('配色{0}：{1}' -f ($index+1),$schemeNames[$index])
         Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).active_scheme -eq $index } 'Scheme selection did not save.'
         $saved = Read-SharedText $settingsPath | ConvertFrom-Json
-        if ($saved.chinese_color -ne $saved.color_schemes[$index].chinese_color -or $saved.english_color -ne $saved.color_schemes[$index].english_color) { throw 'Scheme did not apply both colors.' }
+        if ($saved.PSObject.Properties.Name -contains 'chinese_color' -or $saved.PSObject.Properties.Name -contains 'english_color') { throw 'Settings contain duplicate color fields.' }
         $cn = 0xCC3300 + $index*0x111
         $en = 0x0077AA + $index*0x1010
         Set-CursorColor $true $cn
@@ -165,11 +155,11 @@ try {
         Invoke-SettingControl ('配色{0}：{1}' -f ($index+1),$schemeNames[$index])
         Wait-Condition {
             $saved = Read-SharedText $settingsPath | ConvertFrom-Json
-            $saved.active_scheme -eq $index -and $saved.chinese_color -eq $customColors[$index].Chinese -and $saved.english_color -eq $customColors[$index].English
+            $saved.active_scheme -eq $index -and $saved.color_schemes[$index].chinese_color -eq $customColors[$index].Chinese -and $saved.color_schemes[$index].english_color -eq $customColors[$index].English
         } 'An edited color scheme lost its independent colors.'
     }
     Invoke-SettingControl '重置当前配色'
-    Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).chinese_color -eq '#A18072' } 'Reset did not restore the selected recommendation.'
+    Wait-Condition { (Read-ActiveColors $settingsPath).chinese_color -eq '#A18072' } 'Reset did not restore the selected recommendation.'
     $saved = Read-SharedText $settingsPath | ConvertFrom-Json
     if ($saved.color_schemes[0].chinese_color -ne $customColors[0].Chinese) { throw 'Reset changed a different scheme.' }
     # Restore the remaining recommendations for the visual inspection.
@@ -230,7 +220,6 @@ try {
     Wait-Condition { (Read-SharedText $settingsPath | ConvertFrom-Json).enabled } 'Tray resume did not persist.'
     Start-Sleep -Seconds 3
     $runtime = Read-SharedText (Join-Path $dataDir 'runtime.json') | ConvertFrom-Json
-    if ($legacyTested -and $runtime.sessions.shell_pid -notcontains $existingSession.shell_pid) { throw 'Desktop did not take over the legacy console.' }
     $ownedProcesses = @($runtime.worker_pids) + @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $gui.Id -and $_.Name -eq 'cuesor-engine.exe' } | ForEach-Object ProcessId)
     $children = @($ownedProcesses | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
     $null = [CuesorDesktopCheck]::PostMessageW($tray,0x111,[UIntPtr]3,[IntPtr]::Zero)
@@ -266,7 +255,7 @@ try {
         ColorEditorRowsAligned=$true
         ColorEditorControlBounds=@(@($cnBounds,$enBounds) | Select-Object X,Y,Width,Height)
         KeyboardSwitch=$true; KeyboardTabOrder=$true; MinimumWindowControlsVisible=$true
-        PauseResumePersisted=$true; LegacyHandoffTested=$legacyTested
+        PauseResumePersisted=$true
         InitializedSessions=$runtime.sessions.Count; ExitCleansWorkers=$true; DataDirectory=$(if($KeepArtifacts){$dataDir}else{$null}); TemporaryArtifactsRemoved=(!$KeepArtifacts)
     }
     $verdict | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $projectRoot 'artifacts\desktop-check-verdict.json') -Encoding utf8NoBOM
@@ -275,8 +264,6 @@ try {
     if ($KeepArtifacts -and $gui -and !$gui.HasExited -and $gui.MainWindowHandle -ne 0) {
         & (Join-Path $PSScriptRoot 'capture-window.ps1') -ProcessId $gui.Id -OutputPath (Join-Path $dataDir 'last-visible.png')
     }
-    if ($legacyTested) { & $backend stop }
-    $env:WT_SESSION = $oldSession
     $env:CUESOR_DATA_DIR = $oldDataDirectory
     if ($gui -and !$gui.HasExited) {
         $ownedTray = [CuesorDesktopCheck]::FindWindowW('Cuesor.Tray','Cuesor tray')

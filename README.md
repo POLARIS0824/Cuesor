@@ -45,4 +45,4 @@ Cuesor 使用新的配置目录和登录启动项，不会自动迁移旧设置�
 
 历史验证覆盖微软拼音和美式英文键盘。其他输入法、WSL、SSH 和全部 TUI 尚未全面验证。主动修改光标颜色的程序可能覆盖指示色。
 
-[CLI 接入与诊断](docs/CLI.md)提供独立使用方法。设计约定见 [界面参考](docs/GUI_REDESIGN.md)，本轮检查范围见 [桌面版验证](docs/DESKTOP_VALIDATION.md)。[CLI 历史性能数据](docs/VALIDATION.md)不代表当前版本的性能。
+[诊断说明](docs/DIAGNOSTICS.md)介绍后台报告和配置格式。设计约定见 [界面参考](docs/GUI_REDESIGN.md)，本轮检查范围见 [桌面版验证](docs/DESKTOP_VALIDATION.md)。[CLI 历史性能数据](docs/VALIDATION.md)不代表当前版本的性能。

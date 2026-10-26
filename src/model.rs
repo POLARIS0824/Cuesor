@@ -56,15 +56,6 @@ pub struct Colors {
     pub latin: Color,
 }
 
-impl Default for Colors {
-    fn default() -> Self {
-        Self {
-            chinese: Color(0xFF7800),
-            latin: Color(0x0077FF),
-        }
-    }
-}
-
 impl Colors {
     pub fn sequence(self, mode: ImeMode) -> String {
         match mode {
@@ -128,7 +119,11 @@ mod tests {
             Color::parse("#ff7800").unwrap().sequence(),
             "\x1b]12;#FF7800\x1b\\"
         );
-        assert_eq!(Colors::default().sequence(ImeMode::Unknown), RESET_CURSOR);
+        let colors = Colors {
+            chinese: Color(0xFF7800),
+            latin: Color(0x0077FF),
+        };
+        assert_eq!(colors.sequence(ImeMode::Unknown), RESET_CURSOR);
     }
 
     #[test]

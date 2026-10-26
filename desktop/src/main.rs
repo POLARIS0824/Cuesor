@@ -1,7 +1,6 @@
 #![windows_subsystem = "windows"]
 
 mod native;
-mod radix_theme;
 mod ui;
 
 extern crate gpui_kit as gpui;
@@ -144,8 +143,7 @@ impl SettingsView {
                             .and_then(|bytes| serde_json::from_slice::<RuntimeStatus>(&bytes).ok())
                             .filter(|r| r.controller_pid == std::process::id());
                         if let Some(runtime) = current {
-                            let changed = serde_json::to_vec(&runtime).ok()
-                                != serde_json::to_vec(&view.runtime).ok();
+                            let changed = runtime != view.runtime;
                             view.runtime = runtime;
                             if changed {
                                 cx.notify();
@@ -180,7 +178,7 @@ impl SettingsView {
             instance,
             receiver,
             hwnd,
-            elevated: native::is_elevated(),
+            elevated: cuesor::platform::process_elevated(std::process::id()).unwrap_or(false),
             color_dialog_open: false,
             elevating: false,
             window_size: WindowSize {
@@ -292,7 +290,6 @@ fn run() -> AppResult<()> {
         .with_assets(ui::AppAssets)
         .run(move |cx: &mut App| {
             gpui_kit::init(cx);
-            radix_theme::install(cx);
             let stored_size = WindowSize::load(&directory);
             let restored_size = cx
                 .primary_display()

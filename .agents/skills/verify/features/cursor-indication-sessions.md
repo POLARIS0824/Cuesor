@@ -12,7 +12,9 @@ Capture runtime state with the existing helper.
 pwsh -NoProfile -File tools/verify.ps1 -Action Snapshot -RunId cursor-check
 ```
 
-Require the exact test shell PID in `runtime.json`, a live corresponding worker, and the visible settings session list. Record errors. Open a second Nu or PowerShell tab after launch and repeat those checks for its PID.
+Require the test console's root client PID in `runtime.json`, a live corresponding worker, and the visible settings session list. Cuesor reports the earliest console client. A launcher such as Scoop's `nu.exe` shim can remain as that root while `$nu.pid` identifies its child shell. In that case, record both PIDs, their creation times, and their parent relationship, then compare the root PID with runtime. Launch the actual shell executable directly when practical.
+
+Record errors. Open a second Nu or PowerShell tab after launch and repeat those checks for its root client PID.
 
 An empty discovery result does not pass attachment. The JSON data override does not restrict discovery to the test terminals.
 

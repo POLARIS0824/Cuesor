@@ -94,8 +94,6 @@ impl WindowSize {
 #[serde(default)]
 pub struct Settings {
     pub enabled: bool,
-    pub chinese_color: String,
-    pub english_color: String,
     pub auto_start: bool,
     pub appearance: Appearance,
     pub color_schemes: [ColorScheme; 6],
@@ -107,8 +105,6 @@ impl Default for Settings {
         let color_schemes = default_schemes();
         Self {
             enabled: true,
-            chinese_color: color_schemes[0].chinese_color.clone(),
-            english_color: color_schemes[0].english_color.clone(),
             auto_start: false,
             appearance: Appearance::System,
             color_schemes,
@@ -119,34 +115,34 @@ impl Default for Settings {
 
 impl Settings {
     pub fn select_scheme(&mut self, index: usize) {
-        if let Some(scheme) = self.color_schemes.get(index) {
+        if index < self.color_schemes.len() {
             self.active_scheme = index;
-            self.chinese_color = scheme.chinese_color.clone();
-            self.english_color = scheme.english_color.clone();
         }
+    }
+
+    pub fn active_colors(&self) -> &ColorScheme {
+        &self.color_schemes[self.active_scheme]
     }
 
     pub fn customize_color(&mut self, chinese: bool, color: u32) {
         let color = format!("#{color:06X}");
         let scheme = &mut self.color_schemes[self.active_scheme];
         if chinese {
-            self.chinese_color = color.clone();
             scheme.chinese_color = color;
         } else {
-            self.english_color = color.clone();
             scheme.english_color = color;
         }
     }
 
     pub fn reset_active_scheme(&mut self) {
         self.color_schemes[self.active_scheme] = default_schemes()[self.active_scheme].clone();
-        self.select_scheme(self.active_scheme);
     }
 
     pub fn colors(&self) -> AppResult<Colors> {
+        let scheme = self.active_colors();
         Ok(Colors {
-            chinese: Color::parse(&self.chinese_color)?,
-            latin: Color::parse(&self.english_color)?,
+            chinese: Color::parse(&scheme.chinese_color)?,
+            latin: Color::parse(&scheme.english_color)?,
         })
     }
 
@@ -155,13 +151,29 @@ impl Settings {
             Ok(bytes) => {
                 let json: serde_json::Value = serde_json::from_slice(&bytes)?;
                 let legacy = json.get("color_schemes").is_none();
+                let chinese = json
+                    .get("chinese_color")
+                    .cloned()
+                    .map(serde_json::from_value::<String>)
+                    .transpose()?;
+                let english = json
+                    .get("english_color")
+                    .cloned()
+                    .map(serde_json::from_value::<String>)
+                    .transpose()?;
                 let mut value: Self = serde_json::from_value(json)?;
                 if legacy {
                     value.active_scheme = 0;
-                    value.color_schemes[0] = ColorScheme {
-                        chinese_color: value.chinese_color.clone(),
-                        english_color: value.english_color.clone(),
-                    };
+                }
+                if value.active_scheme >= value.color_schemes.len() {
+                    return Err("invalid active color scheme".into());
+                }
+                let scheme = &mut value.color_schemes[value.active_scheme];
+                if let Some(color) = chinese {
+                    scheme.chinese_color = color;
+                }
+                if let Some(color) = english {
+                    scheme.english_color = color;
                 }
                 value.validate()?;
                 Ok(value)
@@ -177,7 +189,6 @@ impl Settings {
     }
 
     fn validate(&self) -> AppResult<()> {
-        self.colors()?;
         if self.active_scheme >= self.color_schemes.len() {
             return Err("invalid active color scheme".into());
         }
@@ -259,11 +270,11 @@ mod tests {
     #[test]
     fn persists_settings_and_rejects_invalid_colors_without_overwriting() {
         let dir = std::env::temp_dir().join(format!("cuesor-settings-test-{}", std::process::id()));
-        let settings = Settings {
-            chinese_color: "#AA0011".into(),
+        let mut settings = Settings {
             appearance: Appearance::Dark,
             ..Default::default()
         };
+        settings.customize_color(true, 0xAA0011);
         settings.save(&dir).unwrap();
         let next = Settings {
             enabled: false,
@@ -271,10 +282,8 @@ mod tests {
         };
         next.save(&dir).unwrap();
         assert_eq!(Settings::load(&dir).unwrap(), next);
-        let invalid = Settings {
-            english_color: "#bad\u{1b}".into(),
-            ..next.clone()
-        };
+        let mut invalid = next.clone();
+        invalid.color_schemes[0].english_color = "#bad\u{1b}".into();
         assert!(invalid.save(&dir).is_err());
         assert_eq!(Settings::load(&dir).unwrap(), next);
         std::fs::remove_file(dir.join("settings.json")).unwrap();
@@ -329,7 +338,7 @@ mod tests {
         ).unwrap();
         let settings = Settings::load(&dir).unwrap();
         assert_eq!(settings.appearance, Appearance::System);
-        assert_eq!(settings.chinese_color, "#20A78B");
+        assert_eq!(settings.active_colors().chinese_color, "#20A78B");
         assert_eq!(settings.color_schemes[0].chinese_color, "#20A78B");
         assert_eq!(settings.color_schemes[0].english_color, "#0077FF");
         assert_eq!(settings.color_schemes[1], default_schemes()[1]);
@@ -354,8 +363,7 @@ mod tests {
         let custom = settings.color_schemes.clone();
         for (index, scheme) in custom.iter().enumerate() {
             settings.select_scheme(index);
-            assert_eq!(settings.chinese_color, scheme.chinese_color);
-            assert_eq!(settings.english_color, scheme.english_color);
+            assert_eq!(settings.active_colors(), scheme);
         }
         settings.select_scheme(2);
         settings.reset_active_scheme();
@@ -370,6 +378,85 @@ mod tests {
         settings.color_schemes[5].chinese_color = "invalid".into();
         assert!(settings.save(&dir).is_err());
         assert_eq!(Settings::load(&dir).unwrap().color_schemes, custom);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn imports_effective_legacy_colors_once_and_saves_only_schemes() {
+        let dir =
+            std::env::temp_dir().join(format!("cuesor-migration-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut original = Settings::default();
+        original.select_scheme(3);
+        let mut json = serde_json::to_value(&original).unwrap();
+        json["chinese_color"] = "#123456".into();
+        json["english_color"] = "#ABCDEF".into();
+        std::fs::write(
+            dir.join("settings.json"),
+            serde_json::to_vec(&json).unwrap(),
+        )
+        .unwrap();
+
+        let settings = Settings::load(&dir).unwrap();
+        assert_eq!(settings.active_scheme, 3);
+        assert_eq!(settings.colors().unwrap().chinese, Color(0x123456));
+        assert_eq!(settings.colors().unwrap().latin, Color(0xABCDEF));
+        for index in [0, 1, 2, 4, 5] {
+            assert_eq!(settings.color_schemes[index], original.color_schemes[index]);
+        }
+        settings.save(&dir).unwrap();
+        let saved = std::fs::read(dir.join("settings.json")).unwrap();
+        let canonical: serde_json::Value = serde_json::from_slice(&saved).unwrap();
+        assert!(canonical.get("chinese_color").is_none());
+        assert!(canonical.get("english_color").is_none());
+        let reloaded = Settings::load(&dir).unwrap();
+        assert_eq!(reloaded, settings);
+        reloaded.save(&dir).unwrap();
+        assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), saved);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn partial_legacy_pair_keeps_the_other_selected_color() {
+        let dir = std::env::temp_dir().join(format!("cuesor-partial-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut original = Settings::default();
+        original.select_scheme(4);
+        let mut json = serde_json::to_value(&original).unwrap();
+        json["chinese_color"] = "#123456".into();
+        std::fs::write(
+            dir.join("settings.json"),
+            serde_json::to_vec(&json).unwrap(),
+        )
+        .unwrap();
+        let settings = Settings::load(&dir).unwrap();
+        assert_eq!(settings.active_colors().chinese_color, "#123456");
+        assert_eq!(
+            settings.active_colors().english_color,
+            original.active_colors().english_color
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn rejects_invalid_migration_data_without_overwriting_the_file() {
+        let dir = std::env::temp_dir().join(format!("cuesor-invalid-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let original = serde_json::to_value(Settings::default()).unwrap();
+        let mut bad_index = original.clone();
+        bad_index["active_scheme"] = 6.into();
+        let mut bad_legacy = original.clone();
+        bad_legacy["chinese_color"] = "invalid".into();
+        let mut bad_scheme = original.clone();
+        bad_scheme["color_schemes"][5]["english_color"] = "invalid".into();
+        let mut bad_length = original;
+        bad_length["color_schemes"] = serde_json::json!([]);
+        for json in [bad_index, bad_legacy, bad_scheme, bad_length] {
+            let bytes = serde_json::to_vec(&json).unwrap();
+            std::fs::write(dir.join("settings.json"), &bytes).unwrap();
+            assert!(Settings::load(&dir).is_err());
+            assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), bytes);
+        }
         std::fs::remove_dir_all(dir).unwrap();
     }
 

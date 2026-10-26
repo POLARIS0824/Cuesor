@@ -72,6 +72,10 @@ function Read-Json([string]$Path) {
     $reader = [IO.StreamReader]::new($stream)
     try { $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
 }
+function Read-ActiveColors([string]$Path) {
+    $settings = Read-Json $Path
+    $settings.color_schemes[$settings.active_scheme]
+}
 function Record([string]$Event,$Detail) {
     [ordered]@{time_utc=[DateTime]::UtcNow.ToString('o'); event=$Event; detail=$Detail} |
         ConvertTo-Json -Depth 12 -Compress | Add-Content -LiteralPath (Join-Path $evidence 'actions.jsonl') -Encoding utf8NoBOM
@@ -271,7 +275,7 @@ function Set-Color([bool]$Chinese,[int]$Rgb,[switch]$Cancel) {
     Wait-For { [CuesorVerify]::Dialog($gui.Id,$gui.MainWindowHandle) -eq [IntPtr]::Zero } 'Native color dialog did not close.'
     if (!$Cancel) {
         $field = if ($Chinese) {'chinese_color'} else {'english_color'}
-        Wait-For { (Read-Json (Join-Path $dataDir 'settings.json')).$field -eq ('#{0:X6}' -f $Rgb) } 'Color did not persist.'
+        Wait-For { (Read-ActiveColors (Join-Path $dataDir 'settings.json')).$field -eq ('#{0:X6}' -f $Rgb) } 'Color did not persist.'
     }
 }
 try {
@@ -325,7 +329,7 @@ try {
                             Invoke-Control ('配色{0}：{1}' -f ($i+1),$names[$i])
                             Wait-For { (Read-Json $settingsPath).active_scheme -eq $i } 'Scheme did not select.'
                             $saved = Read-Json $settingsPath
-                            if ($saved.chinese_color -ne $saved.color_schemes[$i].chinese_color -or $saved.english_color -ne $saved.color_schemes[$i].english_color) { throw 'Scheme did not apply its pair.' }
+                            if ($saved.PSObject.Properties.Name -contains 'chinese_color' -or $saved.PSObject.Properties.Name -contains 'english_color') { throw 'Settings still contain duplicated active colors.' }
                             $cn = 0xCC3300 + $i*0x111
                             $en = 0x0077AA + $i*0x1010
                             Set-Color $true $cn
@@ -334,7 +338,7 @@ try {
                             Snapshot "scheme-$($i+1)-edited"
                         }
                         Set-Color $true 0x123456 -Cancel
-                        if ((Read-Json $settingsPath).chinese_color -ne $pairs[5].cn) { throw 'Cancelling changed the saved color.' }
+                        if ((Read-ActiveColors $settingsPath).chinese_color -ne $pairs[5].cn) { throw 'Cancelling changed the saved color.' }
                         Stop-Gui
                         Start-Gui
                         $null = Doctor
@@ -342,14 +346,14 @@ try {
                         if ((Read-Json $settingsPath).active_scheme -ne 5) { throw 'Active scheme was lost after restart.' }
                         for ($i=0; $i -lt 6; $i++) {
                             Invoke-Control ('配色{0}：{1}' -f ($i+1),$names[$i])
-                            Wait-For { $saved=Read-Json $settingsPath; $saved.active_scheme -eq $i -and $saved.chinese_color -eq $pairs[$i].cn -and $saved.english_color -eq $pairs[$i].en } 'An independent color pair was lost after restart.'
+                            Wait-For { $saved=Read-Json $settingsPath; $saved.active_scheme -eq $i -and $saved.color_schemes[$i].chinese_color -eq $pairs[$i].cn -and $saved.color_schemes[$i].english_color -eq $pairs[$i].en } 'An independent color pair was lost after restart.'
                             Assert-Selected ('配色{0}：{1}' -f ($i+1),$names[$i])
                         }
                         $beforeReset = Read-Json $settingsPath
                         Invoke-Control '重置当前配色'
-                        Wait-For { (Read-Json $settingsPath).chinese_color -eq '#A18072' } 'Current scheme reset failed.'
+                        Wait-For { (Read-ActiveColors $settingsPath).chinese_color -eq '#A18072' } 'Current scheme reset failed.'
                         $saved = Read-Json $settingsPath
-                        if ($saved.english_color -ne '#3E63DD') { throw 'Reset failed to restore both default colors.' }
+                        if ($saved.color_schemes[$saved.active_scheme].english_color -ne '#3E63DD') { throw 'Reset failed to restore both default colors.' }
                         for ($i=0; $i -lt 5; $i++) {
                             if ($saved.color_schemes[$i].chinese_color -ne $beforeReset.color_schemes[$i].chinese_color -or $saved.color_schemes[$i].english_color -ne $beforeReset.color_schemes[$i].english_color) { throw "Reset changed nonactive scheme $($i+1)." }
                         }

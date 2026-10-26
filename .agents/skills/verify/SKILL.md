@@ -11,6 +11,8 @@ Cuesor has a GPUI Kit settings window and a native tray. Keep `Cuesor.exe` besid
 
 Use an interactive Windows desktop with PowerShell 7 and the build prerequisites in the project README. Run these commands from the repository root in Nushell.
 
+The driver needs access to Explorer's notification area. A restricted desktop sandbox can fail at tray creation before the controller starts. If Launch times out waiting for runtime status, inspect its failure PNG and UI Automation capture for a startup error. After Cleanup, retry with permitted access to the interactive desktop when the failure is caused by sandbox isolation.
+
 ```nu
 pwsh -NoProfile -File tools/build-desktop.ps1
 pwsh -NoProfile -File tools/verify.ps1 -Action Launch -RunId appearance-check
@@ -30,7 +32,7 @@ Run Doctor before interaction and whenever the window or process state is uncert
 pwsh -NoProfile -File tools/verify.ps1 -Action Doctor -RunId appearance-check
 ```
 
-Doctor checks executable hashes, GUI identity, visible controls, tray ownership, saved schemes, the controller, and reported workers. It does not change settings. Zero sessions can be valid for a settings test. Proving attachment requires the exact test shell PID and a ready worker. Proving cursor color requires observing the physical terminal.
+Doctor checks executable hashes, GUI identity, visible controls, tray ownership, saved schemes, the controller, and reported workers. It does not change settings. Zero sessions can be valid for a settings test. Proving attachment requires the exact test console root client PID and a ready worker. See the cursor journey for shell-launcher PID handling. Proving cursor color requires observing the physical terminal.
 
 ## Run a journey
 

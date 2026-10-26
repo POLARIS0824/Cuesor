@@ -34,12 +34,15 @@ Enable `登录 Windows 时启动`. Require saved `auto_start=true` and a Run com
 
 For actual login coverage, enable startup, sign out, and sign in. Require a live owned GUI and controller, a tray icon, hidden settings, and attachment to a new test terminal. A manual `--background` launch does not prove login startup. Record results before restoring state.
 
-## Check standalone diagnostics
+## Check diagnostic reports
 
-In a fresh test terminal, run `cuesor-engine.exe discover REPORT.json` and `cuesor-engine.exe probe`. Compare reported shell and permission PIDs with actual processes. Plain `probe` reads state without writing a cursor color.
+Retain both report types in the run's evidence directory.
 
-For independent CLI behavior, exit all desktop instances through their trays. Source `tools/session-check.nu` in a new Nu test terminal. Require `status` to report a ready worker. Exercise editing, completion, Ctrl+C, input switching, and installed Atuin search, cancel, and acceptance paths. Then stop the worker and observe theme restoration.
+```nu
+./target/release/cuesor-engine.exe discover ./artifacts/verify/diagnostics-check/evidence/discover.json
+./target/release/cuesor-engine.exe diagnose ./artifacts/verify/diagnostics-check/evidence/diagnose.json
+```
 
-`status` and `stop` address the current `WT_SESSION` CLI worker, not desktop auto workers. `probe --follow` and `probe --color` write cursor state, so stop competing workers first. Foreground probe success does not prove background editing behavior.
+`discover` returns a session array containing root client PIDs. `diagnose` returns sessions plus `elevated_terminal_pids`. Compare those PIDs with actual processes. These commands inspect terminals without starting indication workers. The GUI owns worker startup and shutdown. Use the cursor journey for editing, input switching, focus, and visible color checks.
 
 Keep observations and reports after teardown. Exit only recorded test processes. Restore startup state and close the owned elevated app before leaving the disposable session. Missing UAC, login, or terminal observations remain unverified.

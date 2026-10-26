@@ -8,7 +8,7 @@ Use the [verification skill](../SKILL.md) to build, launch, inspect, and clean u
 - [Color schemes](color-schemes.md) covers six independent color pairs, picker confirmation and cancellation, reset, and persistence.
 - [Appearance, window, and keyboard](appearance-window-keyboard.md) covers theme selection, size restoration, window controls, and keyboard operation.
 - [Tray lifecycle](tray-lifecycle.md) covers hide, reopen, single-instance behavior, pause, resume, and exit.
-- [Permissions, startup, and diagnostics](permissions-startup-diagnostics.md) covers elevation, login startup, reports, and standalone CLI use.
+- [Permissions, startup, and diagnostics](permissions-startup-diagnostics.md) covers elevation, login startup, and diagnostic reports.
 
 ## Establish ownership and coverage
 
