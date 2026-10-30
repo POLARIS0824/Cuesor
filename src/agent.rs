@@ -297,14 +297,8 @@ fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
             }
             Err(error) => errors.push(error.to_string()),
         }
-        if let Ok(bytes) = std::fs::read(directory.join("last-worker-error.json")) {
-            if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                if value["controller_pid"].as_u64() == Some(controller_pid as u64) {
-                    if let Some(error) = value["error"].as_str() {
-                        errors.push(error.to_owned());
-                    }
-                }
-            }
+        if let Some(error) = take_worker_error(directory, controller_pid) {
+            errors.push(error);
         }
         let active: Vec<_> = workers.iter().filter(|w| is_ready(&w.session)).collect();
         let status = RuntimeStatus {
@@ -319,7 +313,9 @@ fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
             obsidian_enabled: options.obsidian_enabled,
             obsidian_clients,
         };
-        settings::write_json(&directory.join("runtime.json"), &status)?;
+        // Status reporting is best-effort. A transient file lock must not stop
+        // the controller and leave the UI reporting a dead background service.
+        let _ = settings::write_json(&directory.join("runtime.json"), &status);
         if unsafe { WaitForSingleObject(controller.0, 2000) } == WAIT_OBJECT_0 {
             break;
         }
@@ -334,6 +330,22 @@ fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+/// Workers report at most one failure each. Consume the report so a single
+/// failure cannot keep the UI in a warning state for the rest of the session.
+fn take_worker_error(directory: &Path, controller_pid: u32) -> Option<String> {
+    let path = directory.join("last-worker-error.json");
+    let taken = directory.join(format!("last-worker-error.{}.taken", std::process::id()));
+    let _ = std::fs::remove_file(&taken);
+    std::fs::rename(&path, &taken).ok()?;
+    let bytes = std::fs::read(&taken).ok();
+    let _ = std::fs::remove_file(&taken);
+    let value: serde_json::Value = serde_json::from_slice(&bytes?).ok()?;
+    if value["controller_pid"].as_u64() != Some(controller_pid as u64) {
+        return None;
+    }
+    value["error"].as_str().map(str::to_owned)
 }
 
 fn checked_process(pid: u32, created: u64) -> AppResult<OwnedHandle> {
@@ -496,5 +508,24 @@ mod tests {
             Some((200, 42))
         );
         assert_eq!(earliest_client([(100, 7)].into_iter(), 7), None);
+    }
+
+    #[test]
+    fn worker_error_is_reported_once_and_cleared() {
+        let dir = std::env::temp_dir().join(format!("cuesor-worker-error-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let report = serde_json::json!({"controller_pid": 7, "error": "boom"});
+        crate::settings::write_json(&dir.join("last-worker-error.json"), &report).unwrap();
+
+        assert_eq!(take_worker_error(&dir, 7), Some("boom".to_owned()));
+        assert_eq!(take_worker_error(&dir, 7), None);
+        assert!(!dir.join("last-worker-error.json").exists());
+
+        let stale = serde_json::json!({"controller_pid": 9, "error": "old"});
+        crate::settings::write_json(&dir.join("last-worker-error.json"), &stale).unwrap();
+        assert_eq!(take_worker_error(&dir, 7), None);
+        assert!(!dir.join("last-worker-error.json").exists());
+
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

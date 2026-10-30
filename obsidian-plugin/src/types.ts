@@ -6,14 +6,8 @@ export type ImeMode = 'zh' | 'en' | 'unknown';
 
 export type IndicatorMode = 'color' | 'badge' | 'both' | 'none';
 
-export type ImeSource = 'cuesor-bridge' | 'dom-composition' | 'manual-toggle';
-
-export interface CaretCoordinates {
-  readonly left: number;
-  readonly top: number;
-  readonly right: number;
-  readonly bottom: number;
-}
+export const BRIDGE_HOST = '127.0.0.1';
+export const BRIDGE_PORT = 23333;
 
 export interface ColorSchemeConfig {
   syncWithCuesor: boolean;
@@ -32,14 +26,9 @@ export interface BadgeConfig {
   textUnknown: string;
   offsetY: number;
   offsetX: number;
-  showSourceTag: boolean;
 }
 
 export interface BridgeConfig {
-  enabled: boolean;
-  port: number;
-  host: string;
-  autoReconnect: boolean;
   cuesorPath: string;
 }
 
@@ -63,13 +52,8 @@ export const DEFAULT_SETTINGS: CuesorPluginSettings = {
     textUnknown: '?',
     offsetX: 8,
     offsetY: 3,
-    showSourceTag: false,
   },
   bridge: {
-    enabled: true,
-    port: 23333,
-    host: '127.0.0.1',
-    autoReconnect: true,
     cuesorPath: '',
   },
 };

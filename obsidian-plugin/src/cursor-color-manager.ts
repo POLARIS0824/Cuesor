@@ -74,7 +74,10 @@ export class CursorColorManager {
       );
     }
 
-    this.styleEl.textContent = rules.join('\n');
+    const css = rules.join('\n');
+    if (this.styleEl.textContent !== css) {
+      this.styleEl.textContent = css;
+    }
   }
 
   public destroy(): void {

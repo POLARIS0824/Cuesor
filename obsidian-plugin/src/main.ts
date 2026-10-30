@@ -8,8 +8,33 @@ import { CuesorSettingTab } from './settings-tab';
 import { StateStore } from './state-store';
 import { CuesorPluginSettings, DEFAULT_SETTINGS, IndicatorMode } from './types';
 
+function cloneDefaults(): CuesorPluginSettings {
+  return {
+    indicatorMode: DEFAULT_SETTINGS.indicatorMode,
+    colors: { ...DEFAULT_SETTINGS.colors },
+    badge: { ...DEFAULT_SETTINGS.badge },
+    bridge: { ...DEFAULT_SETTINGS.bridge },
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function nonEmptyText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function isIndicatorMode(value: unknown): value is IndicatorMode {
+  return value === 'both' || value === 'color' || value === 'badge' || value === 'none';
+}
+
 export default class CuesorPlugin extends Plugin {
-  public settings: CuesorPluginSettings = { ...DEFAULT_SETTINGS };
+  public settings: CuesorPluginSettings = cloneDefaults();
   public store!: StateStore;
   public colorManager!: CursorColorManager;
   public badgeManager!: CursorBadgeManager;
@@ -34,19 +59,18 @@ export default class CuesorPlugin extends Plugin {
       })
     );
 
-    // Initialize IME sensor
-    await this.sensor.initialize();
+    this.sensor.initialize();
 
     // Register editor and layout tracking events
-    this.registerInterval(window.setInterval(() => this.badgeManager.updatePosition(), 80));
-    this.registerDomEvent(document, 'scroll', () => this.badgeManager.updatePosition(), true);
-    this.registerDomEvent(document, 'focusin', () => this.badgeManager.updatePosition());
+    this.registerInterval(window.setInterval(() => this.badgeManager.scheduleUpdate(), 80));
+    this.registerDomEvent(document, 'scroll', () => this.badgeManager.scheduleUpdate(), true);
+    this.registerDomEvent(document, 'focusin', () => this.badgeManager.scheduleUpdate());
     this.registerDomEvent(document, 'focusout', () => this.badgeManager.hide());
     this.registerDomEvent(window, 'blur', () => this.badgeManager.hide());
-    this.registerDomEvent(window, 'resize', () => this.badgeManager.updatePosition());
+    this.registerDomEvent(window, 'resize', () => this.badgeManager.scheduleUpdate());
 
-    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.badgeManager.updatePosition()));
-    this.registerEvent(this.app.workspace.on('editor-change', () => this.badgeManager.updatePosition()));
+    this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.badgeManager.scheduleUpdate()));
+    this.registerEvent(this.app.workspace.on('editor-change', () => this.badgeManager.scheduleUpdate()));
 
     // Register user commands
     this.addCommand({
@@ -105,14 +129,6 @@ export default class CuesorPlugin extends Plugin {
       },
     });
 
-    this.addCommand({
-      id: 'toggle-simulated-ime-mode',
-      name: t('command_toggle_simulated_ime'),
-      callback: () => {
-        this.sensor.toggleManualMode();
-      },
-    });
-
     // Add settings tab
     this.addSettingTab(new CuesorSettingTab(this.app, this));
   }
@@ -151,28 +167,43 @@ export default class CuesorPlugin extends Plugin {
   }
 
   public async loadSettings(): Promise<void> {
-    const loaded = (await this.loadData()) as any;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
+    const loaded = (await this.loadData()) as Record<string, unknown> | null;
+    const settings = cloneDefaults();
+    if (!loaded) {
+      this.settings = settings;
+      return;
+    }
 
-    // Migration and defaults normalization
-    if (!this.settings.colors) {
-      this.settings.colors = { ...DEFAULT_SETTINGS.colors };
+    if (isIndicatorMode(loaded.indicatorMode)) {
+      settings.indicatorMode = loaded.indicatorMode;
     }
-    if (this.settings.colors.syncWithCuesor === undefined) {
-      this.settings.colors.syncWithCuesor = true;
+
+    const colors = asRecord(loaded.colors);
+    if (colors) {
+      if (typeof colors.syncWithCuesor === 'boolean') {
+        settings.colors.syncWithCuesor = colors.syncWithCuesor;
+      }
+      settings.colors.zh =
+        nonEmptyText(colors.zh) ?? nonEmptyText(colors.zhLight) ?? settings.colors.zh;
+      settings.colors.en =
+        nonEmptyText(colors.en) ?? nonEmptyText(colors.enLight) ?? settings.colors.en;
     }
-    if (!this.settings.colors.zh) {
-      this.settings.colors.zh = (loaded?.colors?.zhLight) || DEFAULT_SETTINGS.colors.zh;
+
+    const badge = asRecord(loaded.badge);
+    if (badge) {
+      settings.badge.textZh = nonEmptyText(badge.textZh) ?? settings.badge.textZh;
+      settings.badge.textEn = nonEmptyText(badge.textEn) ?? settings.badge.textEn;
+      settings.badge.textUnknown = nonEmptyText(badge.textUnknown) ?? settings.badge.textUnknown;
+      settings.badge.offsetX = finiteNumber(badge.offsetX, settings.badge.offsetX);
+      settings.badge.offsetY = finiteNumber(badge.offsetY, settings.badge.offsetY);
     }
-    if (!this.settings.colors.en) {
-      this.settings.colors.en = (loaded?.colors?.enLight) || DEFAULT_SETTINGS.colors.en;
+
+    const bridge = asRecord(loaded.bridge);
+    if (bridge) {
+      settings.bridge.cuesorPath = nonEmptyText(bridge.cuesorPath) ?? '';
     }
-    if (!this.settings.bridge) {
-      this.settings.bridge = { ...DEFAULT_SETTINGS.bridge };
-    }
-    if (this.settings.bridge.cuesorPath === undefined) {
-      this.settings.bridge.cuesorPath = '';
-    }
+
+    this.settings = settings;
   }
 
   public async saveSettings(): Promise<void> {

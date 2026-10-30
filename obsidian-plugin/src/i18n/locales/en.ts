@@ -6,7 +6,6 @@ export const en = {
   command_toggle_indicator_mode: 'Toggle indicator mode (Color / Badge / Both / Disabled)',
   command_launch_cuesor: 'Launch Cuesor desktop app',
   command_reconnect_bridge: 'Reconnect to Cuesor desktop',
-  command_toggle_simulated_ime: 'Simulate IME mode toggle (Chinese / English)',
 
   // Notices
   notice_indicator_mode_changed: 'Cuesor indicator mode changed to: {mode}',
@@ -31,8 +30,8 @@ export const en = {
   // Status card
   status_title_connected: 'Cuesor Desktop: Connected',
   status_title_disconnected: 'Cuesor Desktop: Disconnected',
-  status_desc_connected: 'Connected via local port {port}. Synchronizing Win32 IME status and cursor colors in real time.',
-  status_desc_disconnected: 'Cuesor is not detected or cannot connect to port {port}. Run Cuesor to enable system-level precise IME status sync.',
+  status_desc_connected: 'Connected to Cuesor on port {port}. Reading the system IME state over the local bridge.',
+  status_desc_disconnected: 'Cuesor desktop is not running or port {port} is unavailable. This plugin depends on Cuesor for IME state, so start the desktop app first.',
   status_detected_path: 'Detected executable path: ',
   status_btn_launch: 'Launch Cuesor',
   status_btn_retry: 'Retry Connection',
@@ -66,13 +65,9 @@ export const en = {
   setting_badge_en_placeholder: 'EN',
 
   // Bridge settings
-  setting_bridge_enable_name: 'Connect to Cuesor desktop engine',
-  setting_bridge_enable_desc: 'Receive Windows IME status in real time via local WebSocket bridge.',
   setting_cuesor_path_name: 'Custom Cuesor executable path',
   setting_cuesor_path_desc: 'If Cuesor.exe was not detected automatically, enter its full absolute path here.',
   setting_cuesor_path_placeholder: 'e.g. D:\\Code\\Cuesor\\target\\debug\\Cuesor.exe',
-  setting_bridge_port_name: 'Bridge service port',
-  setting_bridge_port_desc: 'Local WebSocket port used by Cuesor to broadcast state (default: 23333).',
 
   // System errors
   error_windows_only: 'Cuesor only supports Windows.',

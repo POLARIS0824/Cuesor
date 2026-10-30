@@ -2,14 +2,23 @@ import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { launchCuesor, readCuesorSettingsColors } from './cuesor-locator';
 import { t } from './i18n';
 import type CuesorPlugin from './main';
-import { IndicatorMode } from './types';
+import { BRIDGE_PORT, IndicatorMode } from './types';
 
 export class CuesorSettingTab extends PluginSettingTab {
   private readonly plugin: CuesorPlugin;
+  private pathRefreshTimer: number | null = null;
 
   constructor(app: App, plugin: CuesorPlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+
+  public hide(): void {
+    if (this.pathRefreshTimer !== null) {
+      window.clearTimeout(this.pathRefreshTimer);
+      this.pathRefreshTimer = null;
+    }
+    super.hide();
   }
 
   public display(): void {
@@ -29,7 +38,6 @@ export class CuesorSettingTab extends PluginSettingTab {
     const snapshot = this.plugin.store.getSnapshot();
     const isConnected = snapshot.bridgeConnected;
     const resolvedPath = snapshot.cuesorPath;
-    const { bridge } = snapshot.settings;
 
     const card = containerEl.createDiv({
       cls: `cuesor-status-card ${isConnected ? 'connected' : 'disconnected'}`,
@@ -44,9 +52,9 @@ export class CuesorSettingTab extends PluginSettingTab {
 
     const desc = card.createDiv({ cls: 'cuesor-status-desc' });
     if (isConnected) {
-      desc.setText(t('status_desc_connected', { port: bridge.port }));
+      desc.setText(t('status_desc_connected', { port: BRIDGE_PORT }));
     } else {
-      desc.setText(t('status_desc_disconnected', { port: bridge.port }));
+      desc.setText(t('status_desc_disconnected', { port: BRIDGE_PORT }));
 
       const actions = card.createDiv({ cls: 'cuesor-status-actions' });
       const pathInfo = actions.createDiv({ cls: 'cuesor-detected-path' });
@@ -221,20 +229,6 @@ export class CuesorSettingTab extends PluginSettingTab {
     containerEl.createEl('h3', { text: t('settings_group_bridge') });
 
     new Setting(containerEl)
-      .setName(t('setting_bridge_enable_name'))
-      .setDesc(t('setting_bridge_enable_desc'))
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.bridge.enabled)
-          .onChange(async (value) => {
-            this.plugin.settings.bridge.enabled = value;
-            await this.plugin.saveSettings();
-            this.plugin.sensor.reconnectBridge();
-            setTimeout(() => this.display(), 300);
-          });
-      });
-
-    new Setting(containerEl)
       .setName(t('setting_cuesor_path_name'))
       .setDesc(t('setting_cuesor_path_desc'))
       .addText((text) => {
@@ -244,24 +238,14 @@ export class CuesorSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.bridge.cuesorPath = value.trim();
             await this.plugin.saveSettings();
-            await this.plugin.sensor.refreshCuesorInfo();
-          });
-      });
 
-    new Setting(containerEl)
-      .setName(t('setting_bridge_port_name'))
-      .setDesc(t('setting_bridge_port_desc'))
-      .addText((text) => {
-        text
-          .setPlaceholder('23333')
-          .setValue(String(this.plugin.settings.bridge.port))
-          .onChange(async (value) => {
-            const parsed = parseInt(value, 10);
-            if (!isNaN(parsed) && parsed > 1024 && parsed < 65535) {
-              this.plugin.settings.bridge.port = parsed;
-              await this.plugin.saveSettings();
-              this.plugin.sensor.reconnectBridge();
+            if (this.pathRefreshTimer !== null) {
+              window.clearTimeout(this.pathRefreshTimer);
             }
+            this.pathRefreshTimer = window.setTimeout(() => {
+              this.pathRefreshTimer = null;
+              void this.plugin.sensor.refreshCuesorInfo();
+            }, 500);
           });
       });
   }

@@ -36,7 +36,6 @@ var en = {
   command_toggle_indicator_mode: "Toggle indicator mode (Color / Badge / Both / Disabled)",
   command_launch_cuesor: "Launch Cuesor desktop app",
   command_reconnect_bridge: "Reconnect to Cuesor desktop",
-  command_toggle_simulated_ime: "Simulate IME mode toggle (Chinese / English)",
   // Notices
   notice_indicator_mode_changed: "Cuesor indicator mode changed to: {mode}",
   notice_already_connected: "Cuesor desktop is already running and connected.",
@@ -58,8 +57,8 @@ var en = {
   // Status card
   status_title_connected: "Cuesor Desktop: Connected",
   status_title_disconnected: "Cuesor Desktop: Disconnected",
-  status_desc_connected: "Connected via local port {port}. Synchronizing Win32 IME status and cursor colors in real time.",
-  status_desc_disconnected: "Cuesor is not detected or cannot connect to port {port}. Run Cuesor to enable system-level precise IME status sync.",
+  status_desc_connected: "Connected to Cuesor on port {port}. Reading the system IME state over the local bridge.",
+  status_desc_disconnected: "Cuesor desktop is not running or port {port} is unavailable. This plugin depends on Cuesor for IME state, so start the desktop app first.",
   status_detected_path: "Detected executable path: ",
   status_btn_launch: "Launch Cuesor",
   status_btn_retry: "Retry Connection",
@@ -89,13 +88,9 @@ var en = {
   setting_badge_en_desc: "Text displayed on the floating badge in English mode.",
   setting_badge_en_placeholder: "EN",
   // Bridge settings
-  setting_bridge_enable_name: "Connect to Cuesor desktop engine",
-  setting_bridge_enable_desc: "Receive Windows IME status in real time via local WebSocket bridge.",
   setting_cuesor_path_name: "Custom Cuesor executable path",
   setting_cuesor_path_desc: "If Cuesor.exe was not detected automatically, enter its full absolute path here.",
   setting_cuesor_path_placeholder: "e.g. D:\\Code\\Cuesor\\target\\debug\\Cuesor.exe",
-  setting_bridge_port_name: "Bridge service port",
-  setting_bridge_port_desc: "Local WebSocket port used by Cuesor to broadcast state (default: 23333).",
   // System errors
   error_windows_only: "Cuesor only supports Windows.",
   error_process_spawn_failed: "Unable to invoke system process component.",
@@ -109,7 +104,6 @@ var zhCn = {
   command_toggle_indicator_mode: "\u5207\u6362\u6307\u793A\u6A21\u5F0F (Color / Badge / Both / Disabled)",
   command_launch_cuesor: "\u542F\u52A8 Cuesor \u684C\u9762\u7AEF",
   command_reconnect_bridge: "\u91CD\u65B0\u8FDE\u63A5 Cuesor \u684C\u9762\u7AEF",
-  command_toggle_simulated_ime: "\u6A21\u62DF\u5207\u6362\u4E2D\u82F1\u6587\u72B6\u6001 (\u4E2D\u6587 / \u82F1\u6587)",
   // Notices
   notice_indicator_mode_changed: "Cuesor \u6307\u793A\u6A21\u5F0F\u5DF2\u5207\u6362\u4E3A: {mode}",
   notice_already_connected: "Cuesor \u684C\u9762\u7AEF\u5DF2\u5728\u8FD0\u884C\u5E76\u5904\u4E8E\u8FDE\u63A5\u72B6\u6001\u3002",
@@ -131,8 +125,8 @@ var zhCn = {
   // Status card
   status_title_connected: "Cuesor \u684C\u9762\u7AEF\uFF1A\u5DF2\u8FDE\u63A5",
   status_title_disconnected: "Cuesor \u684C\u9762\u7AEF\uFF1A\u672A\u8FDE\u63A5",
-  status_desc_connected: "\u5DF2\u901A\u8FC7\u672C\u5730\u7AEF\u53E3 {port} \u5EFA\u7ACB\u8FDE\u63A5\uFF0C\u6B63\u5728\u5B9E\u65F6\u540C\u6B65\u8F93\u5165\u6CD5\u4E2D\u82F1\u6587\u72B6\u6001\u4E0E\u5149\u6807\u914D\u8272\u3002",
-  status_desc_disconnected: "\u672A\u68C0\u6D4B\u5230 Cuesor \u8FD0\u884C\u6216\u672A\u80FD\u8FDE\u63A5\u5230\u7AEF\u53E3 {port}\u3002\u8FD0\u884C Cuesor \u5373\u53EF\u5B9E\u73B0\u7CFB\u7EDF\u7EA7\u7CBE\u51C6\u4E2D\u82F1\u6587\u72B6\u6001\u540C\u6B65\u3002",
+  status_desc_connected: "\u5DF2\u8FDE\u63A5\u5230 Cuesor \u684C\u9762\u7AEF\uFF08\u7AEF\u53E3 {port}\uFF09\uFF0C\u6B63\u5728\u901A\u8FC7\u672C\u5730\u6865\u63A5\u8BFB\u53D6\u7CFB\u7EDF\u8F93\u5165\u6CD5\u72B6\u6001\u3002",
+  status_desc_disconnected: "\u672A\u68C0\u6D4B\u5230 Cuesor \u684C\u9762\u7AEF\uFF0C\u6216\u7AEF\u53E3 {port} \u4E0D\u53EF\u7528\u3002\u63D2\u4EF6\u4F9D\u8D56 Cuesor \u8BFB\u53D6\u8F93\u5165\u6CD5\u72B6\u6001\uFF0C\u8BF7\u5148\u542F\u52A8\u684C\u9762\u7AEF\u3002",
   status_detected_path: "\u68C0\u6D4B\u5230\u7A0B\u5E8F\u8DEF\u5F84\uFF1A",
   status_btn_launch: "\u542F\u52A8 Cuesor",
   status_btn_retry: "\u91CD\u8BD5\u8FDE\u63A5",
@@ -162,13 +156,9 @@ var zhCn = {
   setting_badge_en_desc: "\u5904\u4E8E\u82F1\u6587\u8F93\u5165\u72B6\u6001\u65F6\u6D6E\u52A8\u5FBD\u6807\u663E\u793A\u7684\u6587\u5B57\u3002",
   setting_badge_en_placeholder: "EN",
   // Bridge settings
-  setting_bridge_enable_name: "\u8FDE\u63A5 Cuesor \u684C\u9762\u7AEF\u5F15\u64CE",
-  setting_bridge_enable_desc: "\u901A\u8FC7\u672C\u5730 WebSocket \u6865\u63A5\u5B9E\u65F6\u63A5\u6536 Windows \u7CFB\u7EDF IME \u72B6\u6001\u3002",
   setting_cuesor_path_name: "Cuesor \u81EA\u5B9A\u4E49\u53EF\u6267\u884C\u6587\u4EF6\u8DEF\u5F84",
   setting_cuesor_path_desc: "\u82E5\u672A\u80FD\u81EA\u52A8\u68C0\u6D4B\u5230 Cuesor.exe\uFF0C\u53EF\u5728\u6B64\u8F93\u5165\u5176\u5B8C\u6574\u7EDD\u5BF9\u8DEF\u5F84\u3002",
   setting_cuesor_path_placeholder: "\u4F8B\u5982\uFF1AD:\\Code\\Cuesor\\target\\debug\\Cuesor.exe",
-  setting_bridge_port_name: "\u6865\u63A5\u670D\u52A1\u7AEF\u53E3",
-  setting_bridge_port_desc: "Cuesor \u684C\u9762\u7AEF\u5E7F\u64AD\u72B6\u6001\u7684\u672C\u5730 WebSocket \u7AEF\u53E3\uFF08\u9ED8\u8BA4\uFF1A23333\uFF09\u3002",
   // System errors
   error_windows_only: "Cuesor \u4EC5\u652F\u6301 Windows \u7CFB\u7EDF\u3002",
   error_process_spawn_failed: "\u65E0\u6CD5\u8C03\u7528\u7CFB\u7EDF\u8FDB\u7A0B\u7EC4\u4EF6\u3002",
@@ -405,6 +395,14 @@ var CursorBadgeManager = class {
   constructor(app) {
     this.badgeEl = null;
     this.latestSnapshot = null;
+    this.frame = null;
+    this.destroyed = false;
+    this.lastLabel = null;
+    this.lastMode = null;
+    this.badgeWidth = 0;
+    this.badgeHeight = 0;
+    this.lastLeft = Number.NaN;
+    this.lastTop = Number.NaN;
     this.app = app;
   }
   initialize() {
@@ -416,17 +414,32 @@ var CursorBadgeManager = class {
     }
   }
   render(snapshot) {
+    if (this.destroyed) {
+      return;
+    }
     this.latestSnapshot = snapshot;
     this.updatePosition();
   }
+  scheduleUpdate() {
+    if (this.destroyed || this.frame !== null) {
+      return;
+    }
+    this.frame = window.requestAnimationFrame(() => {
+      this.frame = null;
+      this.updatePosition();
+    });
+  }
   updatePosition() {
+    if (this.destroyed) {
+      return;
+    }
     if (!this.badgeEl) {
       this.initialize();
     }
     if (!this.badgeEl || !this.latestSnapshot) {
       return;
     }
-    const { mode, source, settings } = this.latestSnapshot;
+    const { mode, settings } = this.latestSnapshot;
     const { indicatorMode, badge } = settings;
     const isBadgeEnabled = indicatorMode === "badge" || indicatorMode === "both";
     if (!isBadgeEnabled) {
@@ -490,14 +503,21 @@ var CursorBadgeManager = class {
           labelText = badge.textUnknown;
           break;
       }
-      if (badge.showSourceTag) {
-        labelText += ` \xB7 ${source === "cuesor-bridge" ? "IPC" : "DOM"}`;
+      if (this.badgeEl.style.display !== "block") {
+        this.badgeEl.style.display = "block";
       }
-      this.badgeEl.textContent = labelText;
-      this.badgeEl.setAttribute("data-mode", mode);
-      this.badgeEl.style.display = "block";
-      const badgeWidth = this.badgeEl.offsetWidth || 30;
-      const badgeHeight = this.badgeEl.offsetHeight || 18;
+      if (labelText !== this.lastLabel) {
+        this.badgeEl.textContent = labelText;
+        this.lastLabel = labelText;
+        this.badgeWidth = 0;
+        this.badgeHeight = 0;
+      }
+      if (mode !== this.lastMode) {
+        this.badgeEl.setAttribute("data-mode", mode);
+        this.lastMode = mode;
+      }
+      const badgeWidth = this.badgeWidth || (this.badgeWidth = this.badgeEl.offsetWidth || 30);
+      const badgeHeight = this.badgeHeight || (this.badgeHeight = this.badgeEl.offsetHeight || 18);
       let x = caret.left + badge.offsetX;
       x = Math.max(clip.left, Math.min(x, clip.right - badgeWidth));
       let y = caret.bottom + badge.offsetY;
@@ -506,18 +526,29 @@ var CursorBadgeManager = class {
       } else {
         y = Math.max(clip.top, Math.min(y, clip.bottom - badgeHeight));
       }
-      this.badgeEl.style.left = `${Math.round(x)}px`;
-      this.badgeEl.style.top = `${Math.round(y)}px`;
+      const left = Math.round(x);
+      const top = Math.round(y);
+      if (left !== this.lastLeft || top !== this.lastTop) {
+        this.badgeEl.style.left = `${left}px`;
+        this.badgeEl.style.top = `${top}px`;
+        this.lastLeft = left;
+        this.lastTop = top;
+      }
     } catch {
       this.hide();
     }
   }
   hide() {
-    if (this.badgeEl) {
+    if (this.badgeEl && this.badgeEl.style.display !== "none") {
       this.badgeEl.style.display = "none";
     }
   }
   destroy() {
+    this.destroyed = true;
+    if (this.frame !== null) {
+      window.cancelAnimationFrame(this.frame);
+      this.frame = null;
+    }
     if (this.badgeEl && this.badgeEl.parentNode) {
       this.badgeEl.parentNode.removeChild(this.badgeEl);
     }
@@ -590,7 +621,10 @@ var CursorColorManager = class {
         "}"
       );
     }
-    this.styleEl.textContent = rules.join("\n");
+    const css = rules.join("\n");
+    if (this.styleEl.textContent !== css) {
+      this.styleEl.textContent = css;
+    }
   }
   destroy() {
     if (this.styleEl && this.styleEl.parentNode) {
@@ -600,97 +634,111 @@ var CursorColorManager = class {
   }
 };
 
+// src/types.ts
+var BRIDGE_HOST = "127.0.0.1";
+var BRIDGE_PORT = 23333;
+var DEFAULT_SETTINGS = {
+  indicatorMode: "both",
+  colors: {
+    syncWithCuesor: true,
+    zh: "#F76B15",
+    en: "#0090FF"
+  },
+  badge: {
+    textZh: "\u4E2D",
+    textEn: "EN",
+    textUnknown: "?",
+    offsetX: 8,
+    offsetY: 3
+  },
+  bridge: {
+    cuesorPath: ""
+  }
+};
+
 // src/ime-sensor.ts
+var RECONNECT_DELAY_MS = 5e3;
 var ImeSensor = class {
   constructor(store) {
     this.ws = null;
     this.reconnectTimer = null;
     this.isDestroyed = false;
-    this.boundOnCompositionStart = this.onCompositionStart.bind(this);
-    this.boundOnCompositionEnd = this.onCompositionEnd.bind(this);
-    this.boundOnBeforeInput = this.onBeforeInput.bind(this);
     this.store = store;
   }
-  async initialize() {
-    this.registerDomListeners();
-    await this.refreshCuesorInfo();
+  initialize() {
     this.connectBridge();
+    void this.refreshCuesorInfo();
   }
   async refreshCuesorInfo() {
     const colors = readCuesorSettingsColors();
     if (colors) {
       this.store.updateCuesorColors(colors);
     }
-    const { bridge } = this.store.getSnapshot().settings;
-    const resolvedPath = await findCuesorPath(bridge.cuesorPath);
+    const { cuesorPath } = this.store.getSnapshot().settings.bridge;
+    const resolvedPath = await findCuesorPath(cuesorPath);
     this.store.updateCuesorPath(resolvedPath);
   }
-  toggleManualMode() {
-    const current = this.store.getSnapshot().mode;
-    const next = current === "zh" ? "en" : "zh";
-    this.store.updateIme(next, "manual-toggle");
-  }
   reconnectBridge() {
-    this.disconnectBridge();
-    this.refreshCuesorInfo();
-    this.connectBridge();
-  }
-  connectBridge() {
     if (this.isDestroyed) {
       return;
     }
-    const { bridge } = this.store.getSnapshot().settings;
-    if (!bridge.enabled) {
-      this.store.updateBridgeStatus(false);
+    this.disconnectBridge();
+    void this.refreshCuesorInfo();
+    this.connectBridge();
+  }
+  connectBridge() {
+    if (this.isDestroyed || this.ws) {
       return;
     }
     try {
-      const url = `ws://${bridge.host}:${bridge.port}/cuesor`;
-      const socket = new WebSocket(url);
+      const socket = new WebSocket(`ws://${BRIDGE_HOST}:${BRIDGE_PORT}/cuesor`);
       this.ws = socket;
       socket.onopen = () => {
         if (this.ws === socket) {
           this.store.updateBridgeStatus(true);
-          this.refreshCuesorInfo();
         }
       };
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(String(event.data));
-          if (data && data.colors && data.colors.zh && data.colors.en) {
+          if (data.colors?.zh && data.colors.en) {
             this.store.updateCuesorColors(data.colors);
           }
-          if (data && (data.mode === "zh" || data.mode === "en" || data.mode === "unknown")) {
-            this.store.updateIme(data.mode, "cuesor-bridge");
+          if (data.mode === "zh" || data.mode === "en" || data.mode === "unknown") {
+            this.store.updateIme(data.mode);
           }
         } catch {
         }
       };
       socket.onerror = () => {
         if (this.ws === socket) {
-          this.store.updateBridgeStatus(false);
+          this.markDisconnected();
         }
       };
       socket.onclose = () => {
         if (this.ws === socket) {
           this.ws = null;
-          this.store.updateBridgeStatus(false);
+          this.markDisconnected();
         }
-        if (!this.isDestroyed && bridge.autoReconnect && bridge.enabled) {
-          if (this.reconnectTimer === null) {
-            this.reconnectTimer = window.setTimeout ? window.setTimeout(() => {
-              this.reconnectTimer = null;
-              this.connectBridge();
-            }, 5e3) : setTimeout(() => {
-              this.reconnectTimer = null;
-              this.connectBridge();
-            }, 5e3);
-          }
-        }
+        this.scheduleReconnect();
       };
     } catch {
-      this.store.updateBridgeStatus(false);
+      this.markDisconnected();
+      this.scheduleReconnect();
     }
+  }
+  markDisconnected() {
+    this.store.updateBridgeStatus(false);
+    this.store.updateIme("unknown");
+  }
+  scheduleReconnect() {
+    if (this.isDestroyed || this.reconnectTimer !== null) {
+      return;
+    }
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connectBridge();
+    }, RECONNECT_DELAY_MS);
   }
   disconnectBridge() {
     if (this.reconnectTimer !== null) {
@@ -709,35 +757,11 @@ var ImeSensor = class {
       } catch {
       }
     }
-    this.store.updateBridgeStatus(false);
-  }
-  registerDomListeners() {
-    window.addEventListener("compositionstart", this.boundOnCompositionStart, true);
-    window.addEventListener("compositionend", this.boundOnCompositionEnd, true);
-    window.addEventListener("beforeinput", this.boundOnBeforeInput, true);
-  }
-  unregisterDomListeners() {
-    window.removeEventListener("compositionstart", this.boundOnCompositionStart, true);
-    window.removeEventListener("compositionend", this.boundOnCompositionEnd, true);
-    window.removeEventListener("beforeinput", this.boundOnBeforeInput, true);
-  }
-  onCompositionStart() {
-    this.store.updateIme("zh", "dom-composition");
-  }
-  onCompositionEnd(event) {
-    if (event.data && /[\u4e00-\u9fa5]/.test(event.data)) {
-      this.store.updateIme("zh", "dom-composition");
-    }
-  }
-  onBeforeInput(event) {
-    if (event.inputType === "insertCompositionText") {
-      this.store.updateIme("zh", "dom-composition");
-    }
+    this.markDisconnected();
   }
   destroy() {
     this.isDestroyed = true;
     this.disconnectBridge();
-    this.unregisterDomListeners();
   }
 };
 
@@ -746,7 +770,15 @@ var import_obsidian2 = require("obsidian");
 var CuesorSettingTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
+    this.pathRefreshTimer = null;
     this.plugin = plugin;
+  }
+  hide() {
+    if (this.pathRefreshTimer !== null) {
+      window.clearTimeout(this.pathRefreshTimer);
+      this.pathRefreshTimer = null;
+    }
+    super.hide();
   }
   display() {
     const { containerEl } = this;
@@ -762,7 +794,6 @@ var CuesorSettingTab = class extends import_obsidian2.PluginSettingTab {
     const snapshot = this.plugin.store.getSnapshot();
     const isConnected = snapshot.bridgeConnected;
     const resolvedPath = snapshot.cuesorPath;
-    const { bridge } = snapshot.settings;
     const card = containerEl.createDiv({
       cls: `cuesor-status-card ${isConnected ? "connected" : "disconnected"}`
     });
@@ -774,9 +805,9 @@ var CuesorSettingTab = class extends import_obsidian2.PluginSettingTab {
     });
     const desc = card.createDiv({ cls: "cuesor-status-desc" });
     if (isConnected) {
-      desc.setText(t("status_desc_connected", { port: bridge.port }));
+      desc.setText(t("status_desc_connected", { port: BRIDGE_PORT }));
     } else {
-      desc.setText(t("status_desc_disconnected", { port: bridge.port }));
+      desc.setText(t("status_desc_disconnected", { port: BRIDGE_PORT }));
       const actions = card.createDiv({ cls: "cuesor-status-actions" });
       const pathInfo = actions.createDiv({ cls: "cuesor-detected-path" });
       if (resolvedPath) {
@@ -895,64 +926,26 @@ var CuesorSettingTab = class extends import_obsidian2.PluginSettingTab {
   }
   renderBridgeSettings(containerEl) {
     containerEl.createEl("h3", { text: t("settings_group_bridge") });
-    new import_obsidian2.Setting(containerEl).setName(t("setting_bridge_enable_name")).setDesc(t("setting_bridge_enable_desc")).addToggle((toggle) => {
-      toggle.setValue(this.plugin.settings.bridge.enabled).onChange(async (value) => {
-        this.plugin.settings.bridge.enabled = value;
-        await this.plugin.saveSettings();
-        this.plugin.sensor.reconnectBridge();
-        setTimeout(() => this.display(), 300);
-      });
-    });
     new import_obsidian2.Setting(containerEl).setName(t("setting_cuesor_path_name")).setDesc(t("setting_cuesor_path_desc")).addText((text) => {
       text.setPlaceholder(t("setting_cuesor_path_placeholder")).setValue(this.plugin.settings.bridge.cuesorPath || "").onChange(async (value) => {
         this.plugin.settings.bridge.cuesorPath = value.trim();
         await this.plugin.saveSettings();
-        await this.plugin.sensor.refreshCuesorInfo();
-      });
-    });
-    new import_obsidian2.Setting(containerEl).setName(t("setting_bridge_port_name")).setDesc(t("setting_bridge_port_desc")).addText((text) => {
-      text.setPlaceholder("23333").setValue(String(this.plugin.settings.bridge.port)).onChange(async (value) => {
-        const parsed = parseInt(value, 10);
-        if (!isNaN(parsed) && parsed > 1024 && parsed < 65535) {
-          this.plugin.settings.bridge.port = parsed;
-          await this.plugin.saveSettings();
-          this.plugin.sensor.reconnectBridge();
+        if (this.pathRefreshTimer !== null) {
+          window.clearTimeout(this.pathRefreshTimer);
         }
+        this.pathRefreshTimer = window.setTimeout(() => {
+          this.pathRefreshTimer = null;
+          void this.plugin.sensor.refreshCuesorInfo();
+        }, 500);
       });
     });
-  }
-};
-
-// src/types.ts
-var DEFAULT_SETTINGS = {
-  indicatorMode: "both",
-  colors: {
-    syncWithCuesor: true,
-    zh: "#F76B15",
-    en: "#0090FF"
-  },
-  badge: {
-    textZh: "\u4E2D",
-    textEn: "EN",
-    textUnknown: "?",
-    offsetX: 8,
-    offsetY: 3,
-    showSourceTag: false
-  },
-  bridge: {
-    enabled: true,
-    port: 23333,
-    host: "127.0.0.1",
-    autoReconnect: true,
-    cuesorPath: ""
   }
 };
 
 // src/state-store.ts
 var StateStore = class {
   constructor(initialSettings) {
-    this.mode = "en";
-    this.source = "dom-composition";
+    this.mode = "unknown";
     this.bridgeConnected = false;
     this.cuesorColors = { ...FALLBACK_CUESOR_COLORS };
     this.cuesorPath = null;
@@ -965,19 +958,17 @@ var StateStore = class {
   getSnapshot() {
     return {
       mode: this.mode,
-      source: this.source,
       bridgeConnected: this.bridgeConnected,
       cuesorColors: this.cuesorColors,
       cuesorPath: this.cuesorPath,
       settings: this.settings
     };
   }
-  updateIme(mode, source) {
-    if (this.mode === mode && this.source === source) {
+  updateIme(mode) {
+    if (this.mode === mode) {
       return;
     }
     this.mode = mode;
-    this.source = source;
     this.notify();
   }
   updateBridgeStatus(connected) {
@@ -1034,10 +1025,30 @@ var StateStore = class {
 };
 
 // src/main.ts
+function cloneDefaults() {
+  return {
+    indicatorMode: DEFAULT_SETTINGS.indicatorMode,
+    colors: { ...DEFAULT_SETTINGS.colors },
+    badge: { ...DEFAULT_SETTINGS.badge },
+    bridge: { ...DEFAULT_SETTINGS.bridge }
+  };
+}
+function asRecord(value) {
+  return typeof value === "object" && value !== null ? value : null;
+}
+function nonEmptyText(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+function finiteNumber(value, fallback) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+function isIndicatorMode(value) {
+  return value === "both" || value === "color" || value === "badge" || value === "none";
+}
 var CuesorPlugin = class extends import_obsidian3.Plugin {
   constructor() {
     super(...arguments);
-    this.settings = { ...DEFAULT_SETTINGS };
+    this.settings = cloneDefaults();
   }
   async onload() {
     await this.loadSettings();
@@ -1053,15 +1064,15 @@ var CuesorPlugin = class extends import_obsidian3.Plugin {
         this.badgeManager.render(snapshot);
       })
     );
-    await this.sensor.initialize();
-    this.registerInterval(window.setInterval(() => this.badgeManager.updatePosition(), 80));
-    this.registerDomEvent(document, "scroll", () => this.badgeManager.updatePosition(), true);
-    this.registerDomEvent(document, "focusin", () => this.badgeManager.updatePosition());
+    this.sensor.initialize();
+    this.registerInterval(window.setInterval(() => this.badgeManager.scheduleUpdate(), 80));
+    this.registerDomEvent(document, "scroll", () => this.badgeManager.scheduleUpdate(), true);
+    this.registerDomEvent(document, "focusin", () => this.badgeManager.scheduleUpdate());
     this.registerDomEvent(document, "focusout", () => this.badgeManager.hide());
     this.registerDomEvent(window, "blur", () => this.badgeManager.hide());
-    this.registerDomEvent(window, "resize", () => this.badgeManager.updatePosition());
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.badgeManager.updatePosition()));
-    this.registerEvent(this.app.workspace.on("editor-change", () => this.badgeManager.updatePosition()));
+    this.registerDomEvent(window, "resize", () => this.badgeManager.scheduleUpdate());
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.badgeManager.scheduleUpdate()));
+    this.registerEvent(this.app.workspace.on("editor-change", () => this.badgeManager.scheduleUpdate()));
     this.addCommand({
       id: "toggle-indicator-mode",
       name: t("command_toggle_indicator_mode"),
@@ -1113,13 +1124,6 @@ var CuesorPlugin = class extends import_obsidian3.Plugin {
         }, 800);
       }
     });
-    this.addCommand({
-      id: "toggle-simulated-ime-mode",
-      name: t("command_toggle_simulated_ime"),
-      callback: () => {
-        this.sensor.toggleManualMode();
-      }
-    });
     this.addSettingTab(new CuesorSettingTab(this.app, this));
   }
   showDisconnectedNotice() {
@@ -1152,25 +1156,35 @@ var CuesorPlugin = class extends import_obsidian3.Plugin {
   }
   async loadSettings() {
     const loaded = await this.loadData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
-    if (!this.settings.colors) {
-      this.settings.colors = { ...DEFAULT_SETTINGS.colors };
+    const settings = cloneDefaults();
+    if (!loaded) {
+      this.settings = settings;
+      return;
     }
-    if (this.settings.colors.syncWithCuesor === void 0) {
-      this.settings.colors.syncWithCuesor = true;
+    if (isIndicatorMode(loaded.indicatorMode)) {
+      settings.indicatorMode = loaded.indicatorMode;
     }
-    if (!this.settings.colors.zh) {
-      this.settings.colors.zh = loaded?.colors?.zhLight || DEFAULT_SETTINGS.colors.zh;
+    const colors = asRecord(loaded.colors);
+    if (colors) {
+      if (typeof colors.syncWithCuesor === "boolean") {
+        settings.colors.syncWithCuesor = colors.syncWithCuesor;
+      }
+      settings.colors.zh = nonEmptyText(colors.zh) ?? nonEmptyText(colors.zhLight) ?? settings.colors.zh;
+      settings.colors.en = nonEmptyText(colors.en) ?? nonEmptyText(colors.enLight) ?? settings.colors.en;
     }
-    if (!this.settings.colors.en) {
-      this.settings.colors.en = loaded?.colors?.enLight || DEFAULT_SETTINGS.colors.en;
+    const badge = asRecord(loaded.badge);
+    if (badge) {
+      settings.badge.textZh = nonEmptyText(badge.textZh) ?? settings.badge.textZh;
+      settings.badge.textEn = nonEmptyText(badge.textEn) ?? settings.badge.textEn;
+      settings.badge.textUnknown = nonEmptyText(badge.textUnknown) ?? settings.badge.textUnknown;
+      settings.badge.offsetX = finiteNumber(badge.offsetX, settings.badge.offsetX);
+      settings.badge.offsetY = finiteNumber(badge.offsetY, settings.badge.offsetY);
     }
-    if (!this.settings.bridge) {
-      this.settings.bridge = { ...DEFAULT_SETTINGS.bridge };
+    const bridge = asRecord(loaded.bridge);
+    if (bridge) {
+      settings.bridge.cuesorPath = nonEmptyText(bridge.cuesorPath) ?? "";
     }
-    if (this.settings.bridge.cuesorPath === void 0) {
-      this.settings.bridge.cuesorPath = "";
-    }
+    this.settings = settings;
   }
   async saveSettings() {
     await this.saveData(this.settings);

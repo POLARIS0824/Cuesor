@@ -489,7 +489,11 @@ impl Render for SettingsView {
                                                         } else if self.runtime.obsidian_clients > 0 {
                                                             i18n::status_obsidian_connected(locale).into()
                                                         } else {
-                                                            i18n::status_obsidian_listening(locale, 23333).into()
+                                                            i18n::status_obsidian_listening(
+                                                                locale,
+                                                                cuesor::bridge::DEFAULT_BRIDGE_PORT,
+                                                            )
+                                                            .into()
                                                         };
                                                         div()
                                                             .text_xs()

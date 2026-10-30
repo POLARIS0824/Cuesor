@@ -8,7 +8,6 @@ export const zhCn: typeof en = {
   command_toggle_indicator_mode: '切换指示模式 (Color / Badge / Both / Disabled)',
   command_launch_cuesor: '启动 Cuesor 桌面端',
   command_reconnect_bridge: '重新连接 Cuesor 桌面端',
-  command_toggle_simulated_ime: '模拟切换中英文状态 (中文 / 英文)',
 
   // Notices
   notice_indicator_mode_changed: 'Cuesor 指示模式已切换为: {mode}',
@@ -33,8 +32,8 @@ export const zhCn: typeof en = {
   // Status card
   status_title_connected: 'Cuesor 桌面端：已连接',
   status_title_disconnected: 'Cuesor 桌面端：未连接',
-  status_desc_connected: '已通过本地端口 {port} 建立连接，正在实时同步输入法中英文状态与光标配色。',
-  status_desc_disconnected: '未检测到 Cuesor 运行或未能连接到端口 {port}。运行 Cuesor 即可实现系统级精准中英文状态同步。',
+  status_desc_connected: '已连接到 Cuesor 桌面端（端口 {port}），正在通过本地桥接读取系统输入法状态。',
+  status_desc_disconnected: '未检测到 Cuesor 桌面端，或端口 {port} 不可用。插件依赖 Cuesor 读取输入法状态，请先启动桌面端。',
   status_detected_path: '检测到程序路径：',
   status_btn_launch: '启动 Cuesor',
   status_btn_retry: '重试连接',
@@ -68,13 +67,9 @@ export const zhCn: typeof en = {
   setting_badge_en_placeholder: 'EN',
 
   // Bridge settings
-  setting_bridge_enable_name: '连接 Cuesor 桌面端引擎',
-  setting_bridge_enable_desc: '通过本地 WebSocket 桥接实时接收 Windows 系统 IME 状态。',
   setting_cuesor_path_name: 'Cuesor 自定义可执行文件路径',
   setting_cuesor_path_desc: '若未能自动检测到 Cuesor.exe，可在此输入其完整绝对路径。',
   setting_cuesor_path_placeholder: '例如：D:\\Code\\Cuesor\\target\\debug\\Cuesor.exe',
-  setting_bridge_port_name: '桥接服务端口',
-  setting_bridge_port_desc: 'Cuesor 桌面端广播状态的本地 WebSocket 端口（默认：23333）。',
 
   // System errors
   error_windows_only: 'Cuesor 仅支持 Windows 系统。',

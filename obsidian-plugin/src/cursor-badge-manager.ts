@@ -5,6 +5,14 @@ export class CursorBadgeManager {
   private badgeEl: HTMLDivElement | null = null;
   private readonly app: App;
   private latestSnapshot: StateSnapshot | null = null;
+  private frame: number | null = null;
+  private destroyed = false;
+  private lastLabel: string | null = null;
+  private lastMode: string | null = null;
+  private badgeWidth = 0;
+  private badgeHeight = 0;
+  private lastLeft = Number.NaN;
+  private lastTop = Number.NaN;
 
   constructor(app: App) {
     this.app = app;
@@ -20,11 +28,27 @@ export class CursorBadgeManager {
   }
 
   public render(snapshot: StateSnapshot): void {
+    if (this.destroyed) {
+      return;
+    }
     this.latestSnapshot = snapshot;
     this.updatePosition();
   }
 
+  public scheduleUpdate(): void {
+    if (this.destroyed || this.frame !== null) {
+      return;
+    }
+    this.frame = window.requestAnimationFrame(() => {
+      this.frame = null;
+      this.updatePosition();
+    });
+  }
+
   public updatePosition(): void {
+    if (this.destroyed) {
+      return;
+    }
     if (!this.badgeEl) {
       this.initialize();
     }
@@ -32,7 +56,7 @@ export class CursorBadgeManager {
       return;
     }
 
-    const { mode, source, settings } = this.latestSnapshot;
+    const { mode, settings } = this.latestSnapshot;
     const { indicatorMode, badge } = settings;
 
     const isBadgeEnabled = indicatorMode === 'badge' || indicatorMode === 'both';
@@ -131,16 +155,23 @@ export class CursorBadgeManager {
           break;
       }
 
-      if (badge.showSourceTag) {
-        labelText += ` · ${source === 'cuesor-bridge' ? 'IPC' : 'DOM'}`;
+      if (this.badgeEl.style.display !== 'block') {
+        this.badgeEl.style.display = 'block';
       }
 
-      this.badgeEl.textContent = labelText;
-      this.badgeEl.setAttribute('data-mode', mode);
-      this.badgeEl.style.display = 'block';
+      if (labelText !== this.lastLabel) {
+        this.badgeEl.textContent = labelText;
+        this.lastLabel = labelText;
+        this.badgeWidth = 0;
+        this.badgeHeight = 0;
+      }
+      if (mode !== this.lastMode) {
+        this.badgeEl.setAttribute('data-mode', mode);
+        this.lastMode = mode;
+      }
 
-      const badgeWidth = this.badgeEl.offsetWidth || 30;
-      const badgeHeight = this.badgeEl.offsetHeight || 18;
+      const badgeWidth = this.badgeWidth || (this.badgeWidth = this.badgeEl.offsetWidth || 30);
+      const badgeHeight = this.badgeHeight || (this.badgeHeight = this.badgeEl.offsetHeight || 18);
 
       let x = caret.left + badge.offsetX;
       x = Math.max(clip.left, Math.min(x, clip.right - badgeWidth));
@@ -152,20 +183,31 @@ export class CursorBadgeManager {
         y = Math.max(clip.top, Math.min(y, clip.bottom - badgeHeight));
       }
 
-      this.badgeEl.style.left = `${Math.round(x)}px`;
-      this.badgeEl.style.top = `${Math.round(y)}px`;
+      const left = Math.round(x);
+      const top = Math.round(y);
+      if (left !== this.lastLeft || top !== this.lastTop) {
+        this.badgeEl.style.left = `${left}px`;
+        this.badgeEl.style.top = `${top}px`;
+        this.lastLeft = left;
+        this.lastTop = top;
+      }
     } catch {
       this.hide();
     }
   }
 
   public hide(): void {
-    if (this.badgeEl) {
+    if (this.badgeEl && this.badgeEl.style.display !== 'none') {
       this.badgeEl.style.display = 'none';
     }
   }
 
   public destroy(): void {
+    this.destroyed = true;
+    if (this.frame !== null) {
+      window.cancelAnimationFrame(this.frame);
+      this.frame = null;
+    }
     if (this.badgeEl && this.badgeEl.parentNode) {
       this.badgeEl.parentNode.removeChild(this.badgeEl);
     }

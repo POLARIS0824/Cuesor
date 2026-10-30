@@ -1,9 +1,8 @@
 import { FALLBACK_CUESOR_COLORS, CuesorColors } from './cuesor-locator';
-import { CuesorPluginSettings, DEFAULT_SETTINGS, ImeMode, ImeSource } from './types';
+import { CuesorPluginSettings, DEFAULT_SETTINGS, ImeMode } from './types';
 
 export interface StateSnapshot {
   readonly mode: ImeMode;
-  readonly source: ImeSource;
   readonly bridgeConnected: boolean;
   readonly cuesorColors: CuesorColors;
   readonly cuesorPath: string | null;
@@ -13,8 +12,7 @@ export interface StateSnapshot {
 export type StateListener = (snapshot: StateSnapshot) => void;
 
 export class StateStore {
-  private mode: ImeMode = 'en';
-  private source: ImeSource = 'dom-composition';
+  private mode: ImeMode = 'unknown';
   private bridgeConnected = false;
   private cuesorColors: CuesorColors = { ...FALLBACK_CUESOR_COLORS };
   private cuesorPath: string | null = null;
@@ -30,7 +28,6 @@ export class StateStore {
   public getSnapshot(): StateSnapshot {
     return {
       mode: this.mode,
-      source: this.source,
       bridgeConnected: this.bridgeConnected,
       cuesorColors: this.cuesorColors,
       cuesorPath: this.cuesorPath,
@@ -38,12 +35,11 @@ export class StateStore {
     };
   }
 
-  public updateIme(mode: ImeMode, source: ImeSource): void {
-    if (this.mode === mode && this.source === source) {
+  public updateIme(mode: ImeMode): void {
+    if (this.mode === mode) {
       return;
     }
     this.mode = mode;
-    this.source = source;
     this.notify();
   }
 

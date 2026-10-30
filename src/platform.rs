@@ -17,7 +17,7 @@ use windows::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::Ime::ImmGetDefaultIMEWnd;
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyState};
+use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayout;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetAncestor, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId,
     SendMessageTimeoutW, GA_ROOTOWNER, GUITHREADINFO, SMTO_ABORTIFHUNG, SMTO_ERRORONEXIT,
@@ -216,10 +216,7 @@ pub fn sample_foreground_ime() -> ImeMode {
             }
         }
     }
-    let is_caps = unsafe { (GetKeyState(0x14) & 1) != 0 };
-    if is_caps {
-        ImeMode::Latin
-    } else if focus() == Some(before) {
+    if focus() == Some(before) {
         classify(language, open, conversion)
     } else {
         ImeMode::Unknown
