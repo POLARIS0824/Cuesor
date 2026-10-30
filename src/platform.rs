@@ -17,7 +17,7 @@ use windows::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Input::Ime::ImmGetDefaultIMEWnd;
-use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayout;
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyboardLayout, GetKeyState};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetAncestor, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId,
     SendMessageTimeoutW, GA_ROOTOWNER, GUITHREADINFO, SMTO_ABORTIFHUNG, SMTO_ERRORONEXIT,
@@ -118,18 +118,28 @@ pub fn focus() -> Option<Focus> {
             cbSize: size_of::<GUITHREADINFO>() as u32,
             ..Default::default()
         };
-        GetGUIThreadInfo(thread_id, &mut info).ok()?;
-        let focused = if info.hwndFocus.0.is_null() {
-            foreground
+        let focused = if GetGUIThreadInfo(thread_id, &mut info).is_ok() {
+            if !info.hwndFocus.0.is_null() {
+                info.hwndFocus
+            } else if !info.hwndActive.0.is_null() {
+                info.hwndActive
+            } else {
+                foreground
+            }
         } else {
-            info.hwndFocus
+            foreground
         };
         let focus_thread = GetWindowThreadProcessId(focused, None);
+        let actual_thread = if focus_thread != 0 {
+            focus_thread
+        } else {
+            thread_id
+        };
         Some(Focus {
             foreground,
             focused,
-            thread_id: focus_thread,
-            layout: GetKeyboardLayout(focus_thread).0 as usize,
+            thread_id: actual_thread,
+            layout: GetKeyboardLayout(actual_thread).0 as usize,
         })
     }
 }
@@ -182,6 +192,38 @@ pub fn sample(host: HWND) -> Sample {
         result.mode = classify(language, open, conversion);
     }
     result
+}
+
+pub fn sample_foreground_ime() -> ImeMode {
+    let Some(before) = focus() else {
+        return ImeMode::Unknown;
+    };
+    let language = (before.layout & 0xffff) as u16;
+    let mut open = None;
+    let mut conversion = None;
+    if language == 0x0804 {
+        let mut ime = unsafe { ImmGetDefaultIMEWnd(before.focused) };
+        if ime.0.is_null() && !before.foreground.0.is_null() && before.foreground != before.focused {
+            ime = unsafe { ImmGetDefaultIMEWnd(before.foreground) };
+        }
+        if ime.0.is_null() {
+            ime = unsafe { ImmGetDefaultIMEWnd(HWND(std::ptr::null_mut())) };
+        }
+        if !ime.0.is_null() {
+            open = query(ime, 5);
+            if open.is_some_and(|v| v != 0) {
+                conversion = query(ime, 1);
+            }
+        }
+    }
+    let is_caps = unsafe { (GetKeyState(0x14) & 1) != 0 };
+    if is_caps {
+        ImeMode::Latin
+    } else if focus() == Some(before) {
+        classify(language, open, conversion)
+    } else {
+        ImeMode::Unknown
+    }
 }
 
 pub fn attach(pid: u32) -> AppResult<()> {

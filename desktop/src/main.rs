@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+mod i18n;
 mod native;
 mod ui;
 
@@ -40,6 +41,7 @@ struct SettingsView {
     elevating: bool,
     window_size: WindowSize,
     size_save_at: Option<Instant>,
+    locale: cuesor::i18n::Locale,
 }
 
 impl SettingsView {
@@ -53,6 +55,7 @@ impl SettingsView {
         cx: &mut Context<Self>,
     ) -> Self {
         let hwnd = native_hwnd(window).0 as usize;
+        let locale = cuesor::i18n::Locale::current();
         window.on_window_should_close(cx, move |_, _| {
             unsafe {
                 let _ = ShowWindow(HWND(hwnd as *mut _), SW_HIDE);
@@ -99,7 +102,7 @@ impl SettingsView {
                     {
                         view.size_save_at = None;
                         if let Err(error) = view.window_size.save(&view.directory) {
-                            view.notice = format!("窗口尺寸保存失败：{error}");
+                            view.notice = i18n::notice_window_size_save_failed(view.locale, &error);
                             view.notice_is_error = true;
                             cx.notify();
                         }
@@ -152,8 +155,7 @@ impl SettingsView {
                         if unsafe { WaitForSingleObject(view.agent.0, 0) }
                             == windows::Win32::Foundation::WAIT_OBJECT_0
                         {
-                            view.notice =
-                                "后台已停止，请退出后重新打开；可查看运行记录排查。".into();
+                            view.notice = i18n::notice_controller_stopped(view.locale).into();
                             view.notice_is_error = true;
                             view.controller_stopped = true;
                             view.runtime = RuntimeStatus::default();
@@ -171,7 +173,7 @@ impl SettingsView {
             options,
             directory,
             runtime: RuntimeStatus::default(),
-            notice: "设置自动保存".into(),
+            notice: i18n::notice_auto_saved(locale).into(),
             notice_is_error: false,
             controller_stopped: false,
             agent,
@@ -186,6 +188,7 @@ impl SettingsView {
                 height: f32::from(window.bounds().size.height).round() as u32,
             },
             size_save_at: None,
+            locale,
         };
         view.apply_appearance(window, cx);
         view
@@ -204,10 +207,17 @@ impl SettingsView {
             if next.auto_start != self.options.auto_start {
                 native::set_auto_start(next.auto_start, &std::env::current_exe()?)?;
             }
+            if next.run_as_admin != self.options.run_as_admin {
+                native::set_run_as_admin(next.run_as_admin, &std::env::current_exe()?)?;
+            }
             if let Err(error) = next.save(&self.directory) {
                 if next.auto_start != self.options.auto_start {
                     let _ =
                         native::set_auto_start(self.options.auto_start, &std::env::current_exe()?);
+                }
+                if next.run_as_admin != self.options.run_as_admin {
+                    let _ =
+                        native::set_run_as_admin(self.options.run_as_admin, &std::env::current_exe()?);
                 }
                 return Err(error);
             }
@@ -217,11 +227,11 @@ impl SettingsView {
             Ok(()) => {
                 self.options = next;
                 native::set_indicator_enabled(self.options.enabled);
-                self.notice = "设置已保存".into();
+                self.notice = i18n::notice_saved(self.locale).into();
                 self.notice_is_error = false;
             }
             Err(error) => {
-                self.notice = format!("保存失败：{error}");
+                self.notice = i18n::notice_save_failed(self.locale, &error);
                 self.notice_is_error = true;
             }
         }
@@ -237,7 +247,7 @@ impl SettingsView {
     fn elevate(&mut self, cx: &mut Context<Self>) {
         if !self.elevating {
             self.elevating = true;
-            self.notice = "请处理 Windows 的管理员授权提示。".into();
+            self.notice = i18n::notice_elevation_prompt(self.locale).into();
             self.notice_is_error = false;
             native::request_elevation();
             cx.notify();
@@ -279,6 +289,19 @@ fn run() -> AppResult<()> {
     let directory = settings::data_directory()?;
     let options = Settings::load(&directory)?;
     options.save(&directory)?;
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::fs::write(directory.join("executable.txt"), exe.to_string_lossy().as_bytes());
+    }
+    if options.run_as_admin
+        && !cuesor::platform::process_elevated(std::process::id()).unwrap_or(false)
+        && !arguments
+            .iter()
+            .any(|arg| arg == "--no-elevate" || arg == "--wait-for")
+    {
+        if native::restart_elevated().is_ok() {
+            return Ok(());
+        }
+    }
     native::set_indicator_enabled(options.enabled);
     let background = std::env::args().any(|arg| arg == "--background");
     let (sender, receiver) = std::sync::mpsc::channel();
@@ -286,6 +309,7 @@ fn run() -> AppResult<()> {
     let agent = agent::start_controller(std::process::id(), &directory)?;
     let startup_error = Rc::new(RefCell::new(None));
     let window_error = startup_error.clone();
+    let locale = cuesor::i18n::Locale::current();
     gpui_kit::application()
         .with_assets(ui::AppAssets)
         .run(move |cx: &mut App| {
@@ -318,7 +342,7 @@ fn run() -> AppResult<()> {
                         px(WindowSize::MIN.height as f32),
                     )),
                     titlebar: Some(TitlebarOptions {
-                        title: Some("Cuesor 设置".into()),
+                        title: Some(i18n::window_title(locale).into()),
                         ..Default::default()
                     }),
                     show: !background,

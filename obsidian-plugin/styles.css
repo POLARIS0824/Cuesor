@@ -1,0 +1,140 @@
+/* Cuesor Obsidian Plugin Styles */
+
+/* Floating cursor badge */
+#cuesor-cursor-badge {
+  position: fixed;
+  display: none;
+  z-index: 10000;
+  pointer-events: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-interface);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+  transition: opacity 80ms ease, background-color 120ms ease;
+  user-select: none;
+}
+
+#cuesor-cursor-badge[data-mode="zh"] {
+  background-color: var(--cuesor-badge-bg-zh, #e06c75);
+  color: var(--cuesor-badge-fg-zh, #ffffff);
+  border: 1px solid var(--cuesor-badge-border-zh, #be5046);
+}
+
+#cuesor-cursor-badge[data-mode="en"] {
+  background-color: var(--cuesor-badge-bg-en, #61afef);
+  color: var(--cuesor-badge-fg-en, #ffffff);
+  border: 1px solid var(--cuesor-badge-border-en, #4d90cd);
+}
+
+#cuesor-cursor-badge[data-mode="unknown"] {
+  background-color: var(--background-secondary, #282c34);
+  color: var(--text-muted, #abb2bf);
+  border: 1px solid var(--background-modifier-border, #3e4451);
+}
+
+/* Settings Tab Cuesor Status Card */
+.cuesor-status-card {
+  padding: 14px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-secondary);
+}
+
+.cuesor-status-card.connected {
+  border-color: rgba(46, 160, 67, 0.4);
+  background-color: rgba(46, 160, 67, 0.08);
+}
+
+.cuesor-status-card.disconnected {
+  border-color: rgba(229, 77, 46, 0.4);
+  background-color: rgba(229, 77, 46, 0.08);
+}
+
+.cuesor-status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.cuesor-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cuesor-status-card.connected .cuesor-status-dot {
+  background-color: #2ea043;
+  box-shadow: 0 0 6px rgba(46, 160, 67, 0.6);
+}
+
+.cuesor-status-card.disconnected .cuesor-status-dot {
+  background-color: #e54d2e;
+  box-shadow: 0 0 6px rgba(229, 77, 46, 0.6);
+}
+
+.cuesor-status-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.cuesor-status-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cuesor-detected-path {
+  font-size: 12px;
+  color: var(--text-normal);
+  word-break: break-all;
+}
+
+.cuesor-detected-path code {
+  font-size: 11px;
+  background-color: var(--background-primary);
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.cuesor-btn-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cuesor-color-swatches {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background-color: var(--background-secondary);
+}
+
+.cuesor-swatch-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.cuesor-color-circle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  display: inline-block;
+}

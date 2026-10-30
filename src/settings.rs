@@ -22,7 +22,7 @@ pub enum Appearance {
     Dark,
 }
 
-pub const SCHEME_NAMES: [&str; 6] = ["经典", "珊瑚", "暮紫", "极光", "柔粉", "暖砂"];
+pub const SCHEME_NAMES: [&str; 6] = crate::i18n::SCHEME_NAMES_ZH;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ColorScheme {
@@ -95,6 +95,8 @@ impl WindowSize {
 pub struct Settings {
     pub enabled: bool,
     pub auto_start: bool,
+    pub run_as_admin: bool,
+    pub obsidian_enabled: bool,
     pub appearance: Appearance,
     pub color_schemes: [ColorScheme; 6],
     pub active_scheme: usize,
@@ -106,6 +108,8 @@ impl Default for Settings {
         Self {
             enabled: true,
             auto_start: false,
+            run_as_admin: false,
+            obsidian_enabled: true,
             appearance: Appearance::System,
             color_schemes,
             active_scheme: 0,
@@ -344,6 +348,8 @@ mod tests {
         assert_eq!(settings.color_schemes[1], default_schemes()[1]);
         assert!(!settings.enabled);
         assert!(settings.auto_start);
+        assert!(!settings.run_as_admin);
+        assert!(settings.obsidian_enabled);
         settings.save(&dir).unwrap();
         assert_eq!(Settings::load(&dir).unwrap(), settings);
         std::fs::remove_dir_all(dir).unwrap();
@@ -479,6 +485,27 @@ mod tests {
         );
         std::fs::write(dir.join("window.json"), b"corrupt file").unwrap();
         assert_eq!(WindowSize::load(&dir), WindowSize::default());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn obsidian_and_admin_settings_persist_and_default_properly() {
+        let dir = std::env::temp_dir().join(format!("cuesor-obsidian-admin-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let default_settings = Settings::load(&dir).unwrap();
+        assert!(!default_settings.run_as_admin);
+        assert!(default_settings.obsidian_enabled);
+
+        let mut custom = default_settings.clone();
+        custom.run_as_admin = true;
+        custom.obsidian_enabled = false;
+        custom.save(&dir).unwrap();
+
+        let reloaded = Settings::load(&dir).unwrap();
+        assert!(reloaded.run_as_admin);
+        assert!(!reloaded.obsidian_enabled);
+
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

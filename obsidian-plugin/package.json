@@ -1,0 +1,26 @@
+{
+  "name": "cuesor-obsidian",
+  "version": "1.0.0",
+  "description": "Obsidian plugin to indicate IME status using cursor coloring and/or a cursor badge.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "cursor",
+    "ime",
+    "cuesor"
+  ],
+  "author": "POLARIS",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.24.0",
+    "obsidian": "latest",
+    "typescript": "^5.6.3"
+  }
+}

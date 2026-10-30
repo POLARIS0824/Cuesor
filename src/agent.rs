@@ -51,6 +51,10 @@ pub struct RuntimeStatus {
     pub errors: Vec<String>,
     #[serde(default)]
     pub elevated_terminal_pids: Vec<u32>,
+    #[serde(default)]
+    pub obsidian_enabled: bool,
+    #[serde(default)]
+    pub obsidian_clients: usize,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -227,7 +231,7 @@ pub fn start_controller(controller_pid: u32, data_dir: &Path) -> AppResult<Owned
     let owner = process::shell_process(controller_pid)?;
     let executable = std::env::current_exe()?.with_file_name("cuesor-engine.exe");
     if !executable.is_file() {
-        return Err("同目录缺少 cuesor-engine.exe，请使用完整构建目录".into());
+        return Err(crate::i18n::messages::engine_missing(crate::i18n::Locale::current()).into());
     }
     let args = vec![
         executable.into_os_string(),
@@ -242,11 +246,26 @@ pub fn start_controller(controller_pid: u32, data_dir: &Path) -> AppResult<Owned
 fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
     let controller = checked_process(controller_pid, created)?;
     let mut workers: Vec<Worker> = Vec::new();
+    let mut bridge: Option<crate::bridge::BridgeServer> = None;
     while unsafe { WaitForSingleObject(controller.0, 0) } == WAIT_TIMEOUT {
         workers
             .retain(|worker| unsafe { WaitForSingleObject(worker.process.0, 0) } == WAIT_TIMEOUT);
         let mut errors = Vec::new();
         let mut elevated_terminal_pids = Vec::new();
+
+        let options = Settings::load(directory).unwrap_or_default();
+        if options.obsidian_enabled && bridge.is_none() {
+            match crate::bridge::BridgeServer::start_with_dir(crate::bridge::DEFAULT_BRIDGE_PORT, Some(directory.to_path_buf())) {
+                Ok(server) => bridge = Some(server),
+                Err(error) => errors.push(crate::i18n::messages::obsidian_service_failed(crate::i18n::Locale::current(), &error)),
+            }
+        } else if !options.obsidian_enabled && bridge.is_some() {
+            if let Some(mut b) = bridge.take() {
+                b.stop();
+            }
+        }
+        let obsidian_clients = bridge.as_ref().map(|b| b.client_count()).unwrap_or(0);
+
         match discover_report() {
             Ok(report) => {
                 elevated_terminal_pids = report.elevated_terminal_pids;
@@ -297,11 +316,16 @@ fn run(controller_pid: u32, created: u64, directory: &Path) -> AppResult<()> {
                 .collect(),
             errors,
             elevated_terminal_pids,
+            obsidian_enabled: options.obsidian_enabled,
+            obsidian_clients,
         };
         settings::write_json(&directory.join("runtime.json"), &status)?;
         if unsafe { WaitForSingleObject(controller.0, 2000) } == WAIT_OBJECT_0 {
             break;
         }
+    }
+    if let Some(mut b) = bridge.take() {
+        b.stop();
     }
     // Workers watch the controller too. Wait for their graceful color restoration.
     for worker in workers {

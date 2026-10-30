@@ -4,8 +4,9 @@ fn main() {
         println!("cuesor-engine {}", env!("CARGO_PKG_VERSION"));
         return;
     }
-    let result = cuesor::agent::internal_command(args)
-        .unwrap_or_else(|| Err("Cuesor 后台组件，请打开同目录的 Cuesor.exe。".into()));
+    let result = cuesor::agent::internal_command(args).unwrap_or_else(|| {
+        Err(cuesor::i18n::messages::engine_helper_cli(cuesor::i18n::Locale::current()).into())
+    });
     if let Err(error) = result {
         eprintln!("cuesor-engine: {error}");
         std::process::exit(1);

@@ -1,0 +1,10 @@
+{
+  "id": "cuesor-obsidian",
+  "name": "Cuesor",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Indicates current IME state (Chinese / English) via CodeMirror cursor color, floating cursor badge, or both.",
+  "author": "POLARIS",
+  "authorUrl": "https://github.com/POLARIS0824/Cuesor",
+  "isDesktopOnly": true
+}

@@ -20,7 +20,7 @@ impl fmt::Display for ImeMode {
 /// A query failure is never evidence of Latin mode.
 pub fn classify(language: u16, open: Option<usize>, conversion: Option<usize>) -> ImeMode {
     match language {
-        0x0409 => ImeMode::Latin,
+        lang if (lang & 0x03FF) == 0x09 => ImeMode::Latin,
         0x0804 => match (open, conversion) {
             (Some(0), _) => ImeMode::Latin,
             (Some(_), Some(flags)) if flags & 1 != 0 => ImeMode::Chinese,
@@ -105,6 +105,7 @@ mod tests {
     #[test]
     fn distinguishes_layout_and_conversion_modes() {
         assert_eq!(classify(0x0409, None, None), ImeMode::Latin);
+        assert_eq!(classify(0x0809, None, None), ImeMode::Latin); // UK English
         assert_eq!(classify(0x0804, Some(0), None), ImeMode::Latin);
         assert_eq!(classify(0x0804, Some(1), Some(1)), ImeMode::Chinese);
         assert_eq!(classify(0x0804, Some(1), Some(0x400)), ImeMode::Latin);

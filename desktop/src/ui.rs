@@ -1,7 +1,7 @@
-use super::{native, native_hwnd, SettingsView};
+use super::{i18n, native, native_hwnd, SettingsView};
 use cuesor::{
     model::Color,
-    settings::{default_schemes, Appearance, SCHEME_NAMES},
+    settings::{default_schemes, Appearance},
 };
 use gpui::{prelude::*, *};
 use gpui_kit::{
@@ -57,21 +57,22 @@ impl SettingsView {
     }
 
     fn appearance_control(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let locale = self.locale;
         ButtonGroup::new("appearance")
             .small()
             .children(
                 [
-                    ("系统", IconName::Monitor, Appearance::System),
-                    ("浅色", IconName::Sun, Appearance::Light),
-                    ("深色", IconName::Moon, Appearance::Dark),
+                    (i18n::appearance_system(locale), IconName::Monitor, Appearance::System),
+                    (i18n::appearance_light(locale), IconName::Sun, Appearance::Light),
+                    (i18n::appearance_dark(locale), IconName::Moon, Appearance::Dark),
                 ]
                 .into_iter()
                 .enumerate()
-                .map(|(index, (label, icon, mode))| {
+                .map(move |(index, (label, icon, mode))| {
                     Button::new(("appearance", index))
                         .icon(icon)
                         .label(label)
-                        .accessibility_label(format!("外观：{label}"))
+                        .accessibility_label(i18n::accessibility_appearance(locale, label))
                         .selected(self.options.appearance == mode)
                         .toggled(self.options.appearance == mode)
                 }),
@@ -90,16 +91,17 @@ impl SettingsView {
 
     fn color_editor(&self, chinese: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        let locale = self.locale;
         let (label, sample, value) = if chinese {
             (
-                "中文输入",
-                "输入一些文字",
+                i18n::color_editor_chinese_label(locale),
+                i18n::color_editor_chinese_sample(locale),
                 &self.options.active_colors().chinese_color,
             )
         } else {
             (
-                "英文输入",
-                "echo hello",
+                i18n::color_editor_english_label(locale),
+                i18n::color_editor_english_sample(locale),
                 &self.options.active_colors().english_color,
             )
         };
@@ -154,8 +156,8 @@ impl SettingsView {
                     .child(
                         Button::new(if chinese { "cn-custom" } else { "en-custom" })
                             .small()
-                            .label("自定义颜色…")
-                            .accessibility_label(format!("自定义{label}光标颜色"))
+                            .label(i18n::color_custom_button(locale))
+                            .accessibility_label(i18n::accessibility_custom_color(locale, label))
                             .disabled(self.color_dialog_open || self.elevating)
                             .on_click(cx.listener(move |view, _, window, cx| {
                                 if !view.color_dialog_open {
@@ -170,6 +172,8 @@ impl SettingsView {
 
     fn scheme_selector(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        let locale = self.locale;
+        let scheme_names = cuesor::i18n::messages::scheme_names(locale);
         div()
             .flex()
             .flex_col()
@@ -179,9 +183,9 @@ impl SettingsView {
                     .flex()
                     .items_center()
                     .gap_3()
-                    .child(Label::new("配色方案").font_weight(FontWeight::SEMIBOLD))
+                    .child(Label::new(i18n::scheme_selector_title(locale)).font_weight(FontWeight::SEMIBOLD))
                     .child(
-                        Label::new("左侧为中文，右侧为英文")
+                        Label::new(i18n::scheme_selector_hint(locale))
                             .text_xs()
                             .text_color(theme.muted_foreground),
                     )
@@ -196,7 +200,7 @@ impl SettingsView {
                             )
                             .small()
                             .icon(IconName::RotateCcw)
-                            .label("重置当前配色")
+                            .label(i18n::scheme_reset_button(locale))
                             .on_click(cx.listener(|view, _, _, cx| {
                                 let mut next = view.options.clone();
                                 next.reset_active_scheme();
@@ -216,15 +220,12 @@ impl SettingsView {
                             let en = Color::parse(&scheme.english_color)
                                 .expect("validated scheme")
                                 .0;
+                            let name = scheme_names[index];
                             Button::new(("scheme", index))
                                 .flex_1()
                                 .min_w_0()
-                                .label(SCHEME_NAMES[index])
-                                .accessibility_label(format!(
-                                    "配色{}：{}",
-                                    index + 1,
-                                    SCHEME_NAMES[index]
-                                ))
+                                .label(name)
+                                .accessibility_label(i18n::accessibility_scheme(locale, index + 1, name))
                                 .selected(self.options.active_scheme == index)
                                 .toggled(self.options.active_scheme == index)
                                 .disabled(self.color_dialog_open || self.elevating)
@@ -248,46 +249,47 @@ impl SettingsView {
     fn connection_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let count = self.runtime.sessions.len();
         let blocked = !self.runtime.elevated_terminal_pids.is_empty();
+        let locale = self.locale;
         let (variant, icon, title, detail) = if self.controller_stopped {
             (
                 AlertVariant::Error,
                 IconName::CircleAlert,
-                "后台连接已停止".to_owned(),
-                "请从系统托盘退出，再重新打开 Cuesor。",
+                i18n::alert_stopped_title(locale).to_owned(),
+                i18n::alert_stopped_detail(locale),
             )
         } else if blocked {
             (
                 AlertVariant::Warning,
                 IconName::ShieldAlert,
-                "管理员终端需要授权".to_owned(),
-                "以管理员身份重新启动后即可接入。",
+                i18n::alert_admin_title(locale).to_owned(),
+                i18n::alert_admin_detail(locale),
             )
         } else if !self.runtime.errors.is_empty() {
             (
                 AlertVariant::Warning,
                 IconName::CircleAlert,
-                "部分会话未能接入".to_owned(),
-                "请检查终端权限，或退出后重新打开 Cuesor。",
+                i18n::alert_partial_title(locale).to_owned(),
+                i18n::alert_partial_detail(locale),
             )
         } else if !self.options.enabled {
             (
                 AlertVariant::Default,
                 IconName::Pause,
-                "光标指示已暂停".to_owned(),
+                i18n::alert_paused_title(locale).to_owned(),
                 "",
             )
         } else if count == 0 {
             (
                 AlertVariant::Info,
                 IconName::Terminal,
-                "等待 Windows Terminal".to_owned(),
-                "打开 Windows Terminal 即可接入",
+                i18n::alert_waiting_title(locale).to_owned(),
+                i18n::alert_waiting_detail(locale),
             )
         } else {
             (
                 AlertVariant::Success,
                 IconName::CircleCheck,
-                format!("已接入 {count} 个终端会话"),
+                i18n::alert_connected_title(locale, count),
                 "",
             )
         };
@@ -306,7 +308,7 @@ impl SettingsView {
                 let shell = match session.shell.as_str() {
                     "nu.exe" => "Nushell",
                     "powershell.exe" | "pwsh.exe" => "PowerShell",
-                    "cmd.exe" => "命令提示符",
+                    "cmd.exe" => i18n::shell_cmd_display(locale),
                     other => other,
                 };
                 Label::new(format!("{shell}  PID {}", session.shell_pid))
@@ -314,16 +316,16 @@ impl SettingsView {
                     .text_color(cx.theme().muted_foreground)
             }))
             .when(count > 3, |d| {
-                d.child(Label::new(format!("另有 {} 个会话已接入", count - 3)))
+                d.child(Label::new(i18n::more_sessions_connected(locale, count - 3)))
             })
             .when(blocked && !self.elevated, |d| {
                 d.child(
                     Button::new("admin-mode")
                         .small()
                         .label(if self.elevating {
-                            "正在请求授权…"
+                            i18n::btn_requesting_elevation(locale)
                         } else {
-                            "以管理员身份重新启动"
+                            i18n::btn_restart_elevated(locale)
                         })
                         .disabled(self.elevating || self.color_dialog_open)
                         .on_click(cx.listener(|view, _, _, cx| view.elevate(cx))),
@@ -335,8 +337,11 @@ impl SettingsView {
 impl Render for SettingsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme().clone();
+        let locale = self.locale;
         let enable_view = cx.entity().downgrade();
         let autostart_view = enable_view.clone();
+        let run_as_admin_view = enable_view.clone();
+        let obsidian_view = enable_view.clone();
         div()
             .size_full()
             .flex()
@@ -382,18 +387,18 @@ impl Render for SettingsView {
                                             div()
                                                 .text_xl()
                                                 .font_weight(FontWeight::SEMIBOLD)
-                                                .child("光标颜色指示"),
+                                                .child(i18n::section_indicator_title(locale)),
                                         ),
                                     )
                                     .child(
                                         Switch::new("enable")
                                             .checked(self.options.enabled)
                                             .label(if self.options.enabled {
-                                                "已启用"
+                                                i18n::switch_enabled(locale)
                                             } else {
-                                                "已暂停"
+                                                i18n::switch_paused(locale)
                                             })
-                                            .accessibility_label("启用光标颜色指示")
+                                            .accessibility_label(i18n::accessibility_indicator_switch(locale))
                                             .on_change(move |enabled, _, cx| {
                                                 _ = enable_view.update(cx, |view, cx| {
                                                     let mut next = view.options.clone();
@@ -441,16 +446,115 @@ impl Render for SettingsView {
                                             .min_w_0()
                                             .flex()
                                             .flex_col()
-                                            .child("登录 Windows 时启动"),
+                                            .child(i18n::section_autostart_title(locale)),
                                     )
                                     .child(
                                         Switch::new("autostart")
                                             .checked(self.options.auto_start)
-                                            .accessibility_label("登录 Windows 时启动")
+                                            .accessibility_label(i18n::accessibility_autostart_switch(locale))
                                             .on_change(move |enabled, _, cx| {
                                                 _ = autostart_view.update(cx, |view, cx| {
                                                     let mut next = view.options.clone();
                                                     next.auto_start = *enabled;
+                                                    view.persist(next, cx);
+                                                });
+                                            }),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .pt_4()
+                                    .border_t_1()
+                                    .border_color(theme.border)
+                                    .flex()
+                                    .items_center()
+                                    .gap_4()
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .min_w_0()
+                                            .flex()
+                                            .flex_col()
+                                            .gap_1()
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .items_center()
+                                                    .gap_2()
+                                                    .child(div().child(i18n::section_obsidian_title(locale)))
+                                                    .child({
+                                                        let status_text: SharedString = if !self.options.obsidian_enabled {
+                                                            i18n::status_obsidian_disabled(locale).into()
+                                                        } else if self.runtime.obsidian_clients > 0 {
+                                                            i18n::status_obsidian_connected(locale).into()
+                                                        } else {
+                                                            i18n::status_obsidian_listening(locale, 23333).into()
+                                                        };
+                                                        div()
+                                                            .text_xs()
+                                                            .text_color(if !self.options.obsidian_enabled {
+                                                                theme.muted_foreground
+                                                            } else if self.runtime.obsidian_clients > 0 {
+                                                                rgb(0x30A46C).into()
+                                                            } else {
+                                                                theme.muted_foreground
+                                                            })
+                                                            .child(status_text)
+                                                    }),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_xs()
+                                                    .text_color(theme.muted_foreground)
+                                                    .child(i18n::section_obsidian_desc(locale)),
+                                            ),
+                                    )
+                                    .child(
+                                        Switch::new("obsidian-toggle")
+                                            .checked(self.options.obsidian_enabled)
+                                            .accessibility_label(i18n::accessibility_obsidian_switch(locale))
+                                            .on_change(move |enabled, _, cx| {
+                                                _ = obsidian_view.update(cx, |view, cx| {
+                                                    let mut next = view.options.clone();
+                                                    next.obsidian_enabled = *enabled;
+                                                    view.persist(next, cx);
+                                                });
+                                            }),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .pt_4()
+                                    .border_t_1()
+                                    .border_color(theme.border)
+                                    .flex()
+                                    .items_center()
+                                    .gap_4()
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .min_w_0()
+                                            .flex()
+                                            .flex_col()
+                                            .gap_1()
+                                            .child(div().child(i18n::section_admin_title(locale)))
+                                            .child(
+                                                div()
+                                                    .text_xs()
+                                                    .text_color(theme.muted_foreground)
+                                                    .child(i18n::section_admin_desc(locale)),
+                                            ),
+                                    )
+                                    .child(
+                                        Switch::new("run-as-admin")
+                                            .checked(self.options.run_as_admin)
+                                            .accessibility_label(i18n::accessibility_admin_switch(locale))
+                                            .on_change(move |enabled, _, cx| {
+                                                _ = run_as_admin_view.update(cx, |view, cx| {
+                                                    let mut next = view.options.clone();
+                                                    next.run_as_admin = *enabled;
                                                     view.persist(next, cx);
                                                 });
                                             }),
