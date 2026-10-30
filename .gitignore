@@ -6,3 +6,5 @@
 /reference/
 /todo.md
 obsidian-plugin/node_modules/
+Thumbs.db
+.DS_Store
